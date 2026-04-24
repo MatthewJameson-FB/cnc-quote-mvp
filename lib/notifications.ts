@@ -1,6 +1,9 @@
 type QuoteNotificationDetails = {
   name: string;
   email: string;
+  companyName?: string;
+  phone?: string;
+  notes?: string;
   material: string;
   complexity: string;
   volumeCm3: number;
@@ -81,14 +84,19 @@ function quoteSummary(details: QuoteNotificationDetails) {
   return [
     `Name: ${details.name}`,
     `Email: ${details.email}`,
+    details.companyName ? `Company: ${details.companyName}` : null,
+    details.phone ? `Phone: ${details.phone}` : null,
     `Material: ${details.material}`,
     `Complexity: ${details.complexity}`,
     `Approx volume: ${details.volumeCm3} cm³`,
     `Quantity: ${details.quantity}`,
+    details.notes ? `Notes: ${details.notes}` : null,
     `Indicative quote: £${details.quoteLow}–£${details.quoteHigh} inc. VAT`,
     `Total inc. VAT: £${details.quoteTotal}`,
     "Status: Pending engineering review",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export async function sendQuoteNotifications(details: QuoteNotificationDetails) {

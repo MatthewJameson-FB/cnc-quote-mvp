@@ -34,6 +34,9 @@ export async function POST(req: Request) {
     const quote = {
       name: String(formData.get("name") ?? "").trim(),
       email: String(formData.get("email") ?? "").trim(),
+      companyName: String(formData.get("companyName") ?? "").trim(),
+      phone: String(formData.get("phone") ?? "").trim(),
+      notes: String(formData.get("notes") ?? "").trim(),
       material: String(formData.get("material") ?? "").trim(),
       complexity: String(formData.get("complexity") ?? "").trim(),
       volume_cm3: Number(formData.get("volumeCm3")),
@@ -59,6 +62,9 @@ export async function POST(req: Request) {
       void sendQuoteNotifications({
         name: quote.name || "Customer",
         email: quote.email,
+        companyName: quote.companyName || undefined,
+        phone: quote.phone || undefined,
+        notes: quote.notes || undefined,
         material: quote.material,
         complexity: quote.complexity,
         volumeCm3: quote.volume_cm3,
