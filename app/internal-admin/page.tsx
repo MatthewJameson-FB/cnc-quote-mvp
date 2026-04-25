@@ -428,6 +428,13 @@ export default async function AdminPage() {
           </form>
         </header>
 
+        <a
+          href="/internal-admin/pre-leads"
+          className="inline-flex rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-700"
+        >
+          Review pre-leads
+        </a>
+
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard label="Total leads" value={String(totalLeads)} />
           <StatCard label="Accepted leads" value={String(acceptedLeads)} />

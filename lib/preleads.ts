@@ -26,6 +26,7 @@ type MonitorOptions = {
   persistSupabase?: boolean;
   sendEmail?: boolean;
   minScore?: number;
+  maxResults?: number;
   requestDelayMs?: number;
   timeoutMs?: number;
   outputPath?: string;
@@ -82,6 +83,30 @@ type Logger = {
 const ROOT = process.cwd();
 const OUTPUT_PATH = path.join(ROOT, "data", "preleads.json");
 const SOURCES_FILE = path.join(ROOT, "data", "prelead-sources.json");
+const BUILTIN_SUBREDDITS = [
+  "CNC",
+  "Machinists",
+  "projectcar",
+  "kitcar",
+  "Cartalk",
+  "motorcycles",
+  "3Dprinting",
+  "AskEngineers",
+];
+const BUILTIN_QUERIES = [
+  "custom part",
+  "quote",
+  "machinist",
+  "aluminium bracket",
+  "small batch",
+  "CNC",
+  "machine shop",
+  "billet",
+  "replacement part",
+  "STEP file",
+  "DXF",
+];
+const DEFAULT_MAX_RESULTS = 30;
 
 const intentPatterns = [
   /\bquote\b/i,
@@ -340,6 +365,34 @@ function parseSourceEntry(entry: string): SourceEntry | null {
     : null;
 }
 
+function buildBuiltinRedditSources(limit: number): SourceEntry[] {
+  const sources: SourceEntry[] = [];
+
+  for (const subreddit of BUILTIN_SUBREDDITS) {
+    for (const query of BUILTIN_QUERIES) {
+      sources.push({
+        source: `reddit:r/${subreddit} ${query}`,
+        url: `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/search.json?q=${encodeURIComponent(
+          query
+        )}&restrict_sr=1&sort=new&t=all&limit=25`,
+      });
+    }
+  }
+
+  return sources.slice(0, limit);
+}
+
+function dedupeSources(sources: SourceEntry[]) {
+  const seen = new Set<string>();
+  return sources.filter((source) => {
+    if (seen.has(source.url)) {
+      return false;
+    }
+    seen.add(source.url);
+    return true;
+  });
+}
+
 function isRedditUrl(url: string) {
   try {
     const { hostname } = new URL(url);
@@ -370,32 +423,31 @@ function redditJsonUrl(url: string) {
 async function loadSources(logger: Logger): Promise<SourceEntry[]> {
   const envSources = process.env.PRELEAD_SOURCES?.split(",") ?? [];
   const sourcesFromEnv = envSources.map(parseSourceEntry).filter(Boolean) as SourceEntry[];
+  const maxResults = Number(process.env.PRELEAD_MAX_RESULTS ?? DEFAULT_MAX_RESULTS);
+  const builtinSources = buildBuiltinRedditSources(maxResults);
 
-  if (sourcesFromEnv.length > 0) {
-    logger.info(`Loaded PRELEAD_SOURCES from env (${sourcesFromEnv.length})`);
-    logger.debug("Loaded PRELEAD_SOURCES", sourcesFromEnv);
-    return sourcesFromEnv;
-  }
+  let fileSources: SourceEntry[] = [];
 
   try {
     const raw = await readFile(SOURCES_FILE, "utf8");
     const parsed = JSON.parse(raw) as Array<string | SourceEntry>;
-    const sources = parsed
+    fileSources = parsed
       .map((entry) =>
         typeof entry === "string"
           ? parseSourceEntry(entry)
           : parseSourceEntry(`${entry.source}|${entry.url}`)
       )
       .filter(Boolean) as SourceEntry[];
-
-    logger.info(`Loaded PRELEAD_SOURCES from ${path.relative(ROOT, SOURCES_FILE)} (${sources.length})`);
-    logger.debug("Loaded PRELEAD_SOURCES", sources);
-    return sources;
   } catch {
-    logger.info("No PRELEAD_SOURCES configured");
-    logger.debug("Loaded PRELEAD_SOURCES", []);
-    return [];
+    fileSources = [];
   }
+
+  const merged = dedupeSources([...builtinSources, ...fileSources, ...sourcesFromEnv]).slice(0, maxResults);
+  logger.info(`Loaded built-in Reddit sources: ${builtinSources.length}`);
+  logger.info(`Loaded PRELEAD_SOURCES from file/env: ${fileSources.length + sourcesFromEnv.length}`);
+  logger.info(`Total sources scheduled this run: ${merged.length} (max ${maxResults})`);
+  logger.debug("Loaded PRELEAD_SOURCES", merged);
+  return merged;
 }
 
 function buildSuggestedReply(prelead: Omit<Prelead, "suggested_reply">) {
@@ -638,14 +690,16 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     persistSupabase = true,
     sendEmail = true,
     minScore = Number(process.env.PRELEAD_MIN_SCORE ?? 6),
+    maxResults = Number(process.env.PRELEAD_MAX_RESULTS ?? DEFAULT_MAX_RESULTS),
     requestDelayMs = Number(process.env.PRELEAD_DELAY_MS ?? 750),
     timeoutMs = Number(process.env.PRELEAD_TIMEOUT_MS ?? 15000),
     outputPath = OUTPUT_PATH,
   } = options;
 
   logger.info(`Debug mode: ${debugEnabled ? "on" : "off"}`);
-  const sources = await loadSources(logger);
+  const sources = (await loadSources(logger)).slice(0, maxResults);
   const leads: Prelead[] = [];
+  const rejected: Prelead[] = [];
   const seen = new Set<string>();
   let rawItemsFound = 0;
   let passedThreshold = 0;
@@ -664,6 +718,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         const lead = itemToPrelead(source, item);
 
         if (lead.lead_score < minScore) {
+          rejected.push(lead);
           continue;
         }
 
@@ -690,6 +745,19 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   logger.info(`Raw items found: ${rawItemsFound}`);
   logger.info(`Passing score threshold: ${passedThreshold}`);
   logger.info(`Qualifying unique leads: ${leads.length}`);
+
+  if (debugEnabled && rejected.length > 0) {
+    const topRejected = rejected.sort((a, b) => b.lead_score - a.lead_score).slice(0, 8);
+    logger.debug(
+      "Top rejected leads:",
+      topRejected.map((lead) => ({
+        score: lead.lead_score,
+        title: lead.title,
+        url: lead.source_url,
+        keywords: lead.detected_keywords,
+      }))
+    );
+  }
 
   let savedToSupabase = 0;
   if (persistSupabase) {

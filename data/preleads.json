@@ -1,1 +1,368 @@
-[]
+[
+  {
+    "source": "reddit:r/CNC replacement part",
+    "source_url": "https://www.reddit.com/r/CNC/search.json?q=replacement%20part&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "Remarkable_Material3",
+    "title": "Untitled",
+    "snippet": "livery of Langmuir's Apollo we have one of the first 50 or so. these are very much prosumer or very-very high-end hobby machines and save money in multiple ways; cheaper parts and use client assembly of low skill portions. I have been able to get one cut though problems with it I could see once we get it down it will cut faster and cleaner than a plasma. \\n\\",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention"
+    ],
+    "detected_materials": [
+      "steel",
+      "stainless",
+      "brass",
+      "nylon",
+      "titanium",
+      "delrin"
+    ],
+    "lead_score": 19,
+    "created_at": "2026-04-25T10:12:17.921Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned steel, stainless, brass, nylon, titanium, delrin. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/projectcar aluminium bracket",
+    "source_url": "https://www.reddit.com/r/projectcar/search.json?q=aluminium%20bracket&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "MysticMarbles",
+    "title": "Untitled",
+    "snippet": "before (my Jeep was 3.5\\\" suspension with an additional 1\\\" spacer to level the kit due to armor weight) is... rather \\\"machined\\\" to make sure the coil sits properly, and this feels quite beyond what I would think most people would be capable of.\\n\\nSo, what is my plan here? Literally every other 201X hatchback has a parts list for crossfitment. If I wanted",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "automotive/prototype/restoration mention"
+    ],
+    "detected_materials": [
+      "aluminium"
+    ],
+    "lead_score": 17,
+    "created_at": "2026-04-25T10:12:41.739Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminium. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/projectcar quote",
+    "source_url": "https://www.reddit.com/r/projectcar/search.json?q=quote&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "Bestwebhost",
+    "title": "Untitled",
+    "snippet": "inton administration. Do I really trust it through Wyoming in spring weather?\\n\\nBeen looking at shipping options too - quotes are somewhere around $1050 open carrier from [a1autotransport.com](https://www.a1autotransport.com/), door-to-door. Not terrible for the distance honestly.\\n\\nSo what would you guys actually do? Anyone driven a freshly-acquired proje",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention"
+    ],
+    "detected_materials": [],
+    "lead_score": 16,
+    "created_at": "2026-04-25T10:12:39.530Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/projectcar billet",
+    "source_url": "https://www.reddit.com/r/projectcar/search.json?q=billet&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "Restomotive",
+    "title": "Untitled",
+    "snippet": "r\", \"selftext\": \"Who else likes a nice underside shot?\\n\\nNo bolt left untouched. Every part restored or upgraded. Also machined my own billet fuel top hat. \\nVideo for your viewing pleasure: [ODRAWORKS](https://youtu.be/IITknK-0cvE?si=gHMj-NsUPruI_Ka3)\\n\\nRear suspension/differential is next... I already had the car on the ground. Looks crazy when lowered :",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention"
+    ],
+    "detected_materials": [
+      "aluminum",
+      "steel",
+      "stainless",
+      "brass",
+      "delrin"
+    ],
+    "lead_score": 16,
+    "created_at": "2026-04-25T10:12:47.755Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminum, steel, stainless, brass, delrin. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/Machinists small batch",
+    "source_url": "https://www.reddit.com/r/Machinists/search.json?q=small%20batch&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "WAyKenRapid_001",
+    "title": "Untitled",
+    "snippet": "ges could I expect/negotiate for holding the inventory? There is little benefit to doing this if they're still going to quote 4-6 weeks every time I try to order a new batch so am I being realistic cause it doesn't sound like anyone will be willing to do this in low volume based on my experience with US shops.\", \"author_fullname\": \"t2_yj1nq\", \"saved\": false,",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "pure 3D printing only"
+    ],
+    "detected_materials": [
+      "aluminium",
+      "aluminum",
+      "steel",
+      "stainless",
+      "pom"
+    ],
+    "lead_score": 14,
+    "created_at": "2026-04-25T10:12:27.307Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminium, aluminum, steel, stainless, pom. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/CNC machine shop",
+    "source_url": "https://www.reddit.com/r/CNC/search.json?q=machine%20shop&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "NoFig6107",
+    "title": "Untitled",
+    "snippet": "r 4-axis machining, and do you separate setup/programming or include it in the machining cost? I\\u2019m not looking for quotes or services, just trying to understand typical shop rates.\\n\\nAppreciate any insights from those running these machines day-to-day. Thanks in advance for sharing your experience, it really helps clarify real shop pricing\", \"author_fu",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "UK mention",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "free/no budget wording"
+    ],
+    "detected_materials": [
+      "aluminum",
+      "steel",
+      "nylon"
+    ],
+    "lead_score": 13,
+    "created_at": "2026-04-25T10:12:15.205Z",
+    "suggested_reply": "Hi — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminum, steel, nylon. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/Machinists billet",
+    "source_url": "https://www.reddit.com/r/Machinists/search.json?q=billet&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "futnuh",
+    "title": "Untitled",
+    "snippet": "19t the size of engine blocks.\\n\\n \\nIs there a site I can go to where I just upload my CAD and prints to and let shops quote my specs as they feel the need? I\\u2019m spinning my wheels trying to give a shop $ and I\\u2019m struggling to understand why it\\u2019s so difficult to find a good place to spend my cash. \", \"author_fullname\": \"t2_6zx3m\", \"saved\": fal",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "UK mention",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "student/homework",
+      "pure 3D printing only"
+    ],
+    "detected_materials": [
+      "aluminium",
+      "aluminum",
+      "steel",
+      "stainless",
+      "titanium",
+      "copper"
+    ],
+    "lead_score": 13,
+    "created_at": "2026-04-25T10:12:31.282Z",
+    "suggested_reply": "Hi — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminium, aluminum, steel, stainless, titanium, copper. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/CNC aluminium bracket",
+    "source_url": "https://www.reddit.com/r/CNC/search.json?q=aluminium%20bracket&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "InsertTitles",
+    "title": "Untitled",
+    "snippet": "1.1KG \\\\[L bracket + support + mechanism I designed\\\\])\\n\\nWould you agree with PCBway statement or not, and if so what machine would you recommend to use?\\n\\n\", \"author_fullname\": \"t2_169v99\", \"saved\": false, \"mod_reason_title\": null, \"gilded\": 0, \"clicked\": false, \"title\": \"Is this unsuitable for CNC machining or what would you recommend to use to make it?",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "pure 3D printing only"
+    ],
+    "detected_materials": [
+      "aluminium"
+    ],
+    "lead_score": 12,
+    "created_at": "2026-04-25T10:12:10.888Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminium. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/Machinists aluminium bracket",
+    "source_url": "https://www.reddit.com/r/Machinists/search.json?q=aluminium%20bracket&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "CreEngineer",
+    "title": "Untitled",
+    "snippet": "cets\": {}, \"after\": null, \"geo_filter\": \"\", \"children\": [{\"kind\": \"t3\", \"data\": {\"approved_at_utc\": null, \"subreddit\": \"Machinists\", \"selftext\": \"TLDR: What small (CNC) mill to buy for aluminium parts <300mm. No production, completely RnD and small batch rework/modification of parts. Same for lathe, semi manual, no CNC needed (<80mm diameter, 200mm length).\\",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "pure 3D printing only"
+    ],
+    "detected_materials": [
+      "aluminium",
+      "steel",
+      "stainless",
+      "pom",
+      "titanium"
+    ],
+    "lead_score": 11,
+    "created_at": "2026-04-25T10:12:26.002Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminium, steel, stainless, pom, titanium. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/CNC billet",
+    "source_url": "https://www.reddit.com/r/CNC/search.json?q=billet&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "Aurion28",
+    "title": "Untitled",
+    "snippet": "ategories\": null, \"is_self\": false, \"mod_note\": null, \"crosspost_parent_list\": [{\"approved_at_utc\": null, \"subreddit\": \"Machinists\", \"selftext\": \"60ibs of aluminum down to about 11.5.\", \"author_fullname\": \"t2_nqoc95pk\", \"saved\": false, \"mod_reason_title\": null, \"gilded\": 0, \"clicked\": false, \"title\": \"Billet Gen 2 M8 Head\", \"link_flair_richtext\": [], \"subred",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "student/homework",
+      "pure 3D printing only"
+    ],
+    "detected_materials": [
+      "aluminium",
+      "aluminum",
+      "steel"
+    ],
+    "lead_score": 9,
+    "created_at": "2026-04-25T10:12:16.532Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminium, aluminum, steel. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/Machinists CNC",
+    "source_url": "https://www.reddit.com/r/Machinists/search.json?q=CNC&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "ThatGojoGuy",
+    "title": "Untitled",
+    "snippet": "}, \"after\": \"t3_1so0qrg\", \"geo_filter\": \"\", \"children\": [{\"kind\": \"t3\", \"data\": {\"approved_at_utc\": null, \"subreddit\": \"Machinists\", \"selftext\": \"33 (m) located near Fairport NY, with over 12 years of experience programming & setting up on Mazak lathes & HAAS mills, making all types of optics parts from plastic to Invar & Titanium. But as of right now my fat",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "free/no budget wording"
+    ],
+    "detected_materials": [
+      "aluminum",
+      "steel",
+      "titanium"
+    ],
+    "lead_score": 9,
+    "created_at": "2026-04-25T10:12:28.583Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminum, steel, titanium. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/CNC quote",
+    "source_url": "https://www.reddit.com/r/CNC/search.json?q=quote&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "Demoindustry",
+    "title": "Untitled",
+    "snippet": "ry day see my uncle very stress he say this category wanna die, one month got job, next month one pc of the drawing for quote also don\\u2019t have.\\n\\nSo just want to ask is it our factory very small or cannot meet the customer requirement so we cannot get the project.\\n\\nI try my best go to Singapore to find sales but they got a lot of reason \\u201cwe alrea",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "UK mention",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "pure 3D printing only",
+      "free/no budget wording"
+    ],
+    "detected_materials": [
+      "aluminum",
+      "steel",
+      "titanium"
+    ],
+    "lead_score": 8,
+    "created_at": "2026-04-25T10:12:07.885Z",
+    "suggested_reply": "Hi — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminum, steel, titanium. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/CNC small batch",
+    "source_url": "https://www.reddit.com/r/CNC/search.json?q=small%20batch&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "Helpfulbooks",
+    "title": "Untitled",
+    "snippet": "n some money, and then the machine sits idle again for weeks.\\n\\nI\\u2019ve contacted many companies, sent inquiries and quotes, but most of the time it turns into a pure price war. In the end, the job almost always goes to someone who is willing to do it for extremely low prices, often below any realistic profitability.\\n\\nHonestly, I\\u2019m tired of working",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "UK mention",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "pure 3D printing only",
+      "free/no budget wording"
+    ],
+    "detected_materials": [
+      "aluminum",
+      "steel",
+      "stainless",
+      "brass",
+      "titanium"
+    ],
+    "lead_score": 8,
+    "created_at": "2026-04-25T10:12:12.342Z",
+    "suggested_reply": "Hi — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminum, steel, stainless, brass, titanium. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/Machinists replacement part",
+    "source_url": "https://www.reddit.com/r/Machinists/search.json?q=replacement%20part&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "BigDav3h",
+    "title": "Untitled",
+    "snippet": "ubreddit\": \"Machinists\", \"selftext\": \"This feather key goes to my leblond regal. I sheared it and needed a replacement. Quoted $68-\\n\\nOk- too high but it will teach me to be more careful.\\n\\nI ordered it. Holy crap!! They tacked on a $25 shipping charge- for a part that weighs less than an ounce. They claim UPS ground charges more for home delivery. Never b",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "UK mention",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "quantity/small batch mention",
+      "automotive/prototype/restoration mention",
+      "pure 3D printing only",
+      "free/no budget wording"
+    ],
+    "detected_materials": [
+      "aluminum",
+      "steel",
+      "stainless",
+      "nylon",
+      "copper"
+    ],
+    "lead_score": 8,
+    "created_at": "2026-04-25T10:12:32.919Z",
+    "suggested_reply": "Hi — I came across your post and thought Flangie might be useful. I noticed you mentioned aluminum, steel, stainless, nylon, copper. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  },
+  {
+    "source": "reddit:r/projectcar machine shop",
+    "source_url": "https://www.reddit.com/r/projectcar/search.json?q=machine%20shop&restrict_sr=1&sort=new&t=all&limit=25",
+    "source_author": "nock6687",
+    "title": "Untitled",
+    "snippet": "rganized. It\\u2019s going to be apart for a couple months while funds come in, and I have a shop picked out for all the machine work and cleaning. \\n\\nReally just curious on how everyone keeps all the parts organized so I don\\u2019t lose anything. Any tips and tricks would be greatly appreciated!\", \"author_fullname\": \"t2_fu4io\", \"saved\": false, \"mod_reason_t",
+    "detected_keywords": [
+      "quote/supplier/machinist intent",
+      "CNC/machining mention",
+      "CAD/STEP/DXF/drawing mention",
+      "material mention",
+      "automotive/prototype/restoration mention",
+      "free/no budget wording"
+    ],
+    "detected_materials": [
+      "steel"
+    ],
+    "lead_score": 7,
+    "created_at": "2026-04-25T10:12:46.047Z",
+    "suggested_reply": "Hello — I came across your post and thought Flangie might be useful. I noticed you mentioned steel. If you have a drawing or CAD file (STEP, DXF, or similar), we can help get an indicative CNC quote from UK suppliers. No pressure if you're still at concept stage — happy to point you in the right direction."
+  }
+]
