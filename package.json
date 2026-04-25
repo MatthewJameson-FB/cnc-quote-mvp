@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "find:preleads": "tsx scripts/find-preleads.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
@@ -22,6 +23,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

@@ -16,6 +16,7 @@ type QuoteNotificationDetails = {
 type IntroductionEmailDetails = {
   quote_ref: string;
   accept_url: string;
+  partner_accept_token: string;
   customer_name: string;
   email: string;
   partner_email: string;
@@ -24,6 +25,18 @@ type IntroductionEmailDetails = {
   quantity: number;
   created_at: string;
   fileUrl?: string | null;
+};
+
+type PreleadSummaryItem = {
+  source: string;
+  source_url: string;
+  title: string;
+  snippet: string;
+  detected_keywords: string[];
+  detected_materials: string[];
+  lead_score: number;
+  suggested_reply: string;
+  created_at: string;
 };
 
 function escapeHtml(value: string) {
@@ -156,6 +169,7 @@ export async function sendIntroductionEmail(details: IntroductionEmailDetails) {
     : "Not available";
 
   const acceptUrl = details.accept_url;
+  const partnerAcceptToken = details.partner_accept_token;
 
   const text = [
     `Quote ref: ${details.quote_ref}`,
@@ -166,6 +180,7 @@ export async function sendIntroductionEmail(details: IntroductionEmailDetails) {
     `Created: ${createdAt}`,
     `File link: ${details.fileUrl ?? "Not available"}`,
     `Accept lead: ${acceptUrl}`,
+    `Token: ${partnerAcceptToken}`,
     "",
     "This is a lead from Flangie.",
     "The partner is being introduced to the customer.",
@@ -209,4 +224,65 @@ export async function sendIntroductionEmail(details: IntroductionEmailDetails) {
   } catch (error) {
     console.error("INTRO EMAIL ERROR:", error);
   }
+}
+
+export async function sendPreleadSummaryEmail(preleads: PreleadSummaryItem[]) {
+  const to = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
+
+  if (!to) {
+    return false;
+  }
+
+  const top = preleads.slice(0, 10);
+  const subject = `Flangie pre-leads: ${top.length} high-signal leads found`;
+
+  const text = [
+    "Manual review only — do not auto-contact anyone.",
+    "",
+    ...top.flatMap((lead, index) => [
+      `${index + 1}. [${lead.lead_score}] ${lead.title}`,
+      `Source: ${lead.source}`,
+      `URL: ${lead.source_url}`,
+      `Snippet: ${lead.snippet}`,
+      `Suggested reply: ${lead.suggested_reply}`,
+      `Keywords: ${lead.detected_keywords.join(", ") || "—"}`,
+      `Materials: ${lead.detected_materials.join(", ") || "—"}`,
+      "",
+    ]),
+  ].join("\n");
+
+  const htmlRows = top
+    .map(
+      (lead) => `
+        <tr>
+          <td style="padding:12px;border-top:1px solid #e5e7eb;vertical-align:top">
+            <div style="font-weight:700">[${lead.lead_score}] ${escapeHtml(lead.title)}</div>
+            <div style="margin:4px 0;color:#6b7280">${escapeHtml(lead.source)}</div>
+            <div style="margin:4px 0"><a href="${escapeHtml(lead.source_url)}" style="color:#2563eb">Open source</a></div>
+            <div style="margin:8px 0">${escapeHtml(lead.snippet)}</div>
+            <div style="margin:8px 0;padding:10px;background:#f8fafc;border-radius:8px"><strong>Suggested reply:</strong> ${escapeHtml(lead.suggested_reply)}</div>
+            <div style="margin:8px 0;color:#6b7280;font-size:13px">Keywords: ${escapeHtml(lead.detected_keywords.join(", ") || "—")}</div>
+            <div style="margin:4px 0;color:#6b7280;font-size:13px">Materials: ${escapeHtml(lead.detected_materials.join(", ") || "—")}</div>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+
+  await sendResendEmail({
+    to,
+    subject,
+    text,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111;max-width:760px;margin:0 auto">
+        <h2 style="margin:0 0 12px">Flangie pre-leads</h2>
+        <p style="margin:0 0 16px;color:#6b7280">Manual review only — do not auto-contact anyone.</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+          ${htmlRows || `<tr><td style="padding:16px">No qualifying leads found.</td></tr>`}
+        </table>
+      </div>
+    `,
+  });
+
+  return true;
 }

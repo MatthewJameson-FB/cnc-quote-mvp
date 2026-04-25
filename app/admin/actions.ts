@@ -146,6 +146,10 @@ export async function introduceQuoteToPartner(formData: FormData) {
 
   const partnerAcceptToken = crypto.randomUUID();
 
+  if (!partnerAcceptToken) {
+    throw new Error("Missing partner accept token.");
+  }
+
   const { error } = await supabase
     .from("quotes")
     .update({
@@ -184,6 +188,7 @@ export async function introduceQuoteToPartner(formData: FormData) {
     quantity: quote.quantity ?? 0,
     created_at: quote.created_at,
     fileUrl,
+    partner_accept_token: partnerAcceptToken,
     accept_url: `${getAppBaseUrl()}/api/lead/accept?token=${encodeURIComponent(
       partnerAcceptToken
     )}`,
