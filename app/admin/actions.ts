@@ -35,7 +35,7 @@ export async function updateQuoteStatus(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/admin");
+  revalidatePath("/internal-admin");
 }
 
 export async function introduceQuoteToPartner(formData: FormData) {
@@ -107,7 +107,7 @@ export async function introduceQuoteToPartner(formData: FormData) {
     )}`,
   });
 
-  revalidatePath("/admin");
+  revalidatePath("/internal-admin");
 }
 
 function getAppBaseUrl() {
