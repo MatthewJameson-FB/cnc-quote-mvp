@@ -16,10 +16,13 @@ export type Prelead = {
   snippet: string;
   detected_keywords: string[];
   detected_materials: string[];
+  location_signal: LocationSignal;
   lead_score: number;
   suggested_reply: string;
   created_at: string;
 };
+
+export type LocationSignal = "uk" | "unknown" | "outside_uk";
 
 type MonitorOptions = {
   persistJson?: boolean;
@@ -45,6 +48,7 @@ type FetchedItem = {
   title: string;
   body: string;
   url: string;
+  sourceUrl: string;
   author: string | null;
   createdAt: string;
 };
@@ -128,6 +132,41 @@ const ukPatterns = [
   /\bScotland\b/i,
   /\bWales\b/i,
   /\bNorthern Ireland\b/i,
+];
+const ukCityRegionPatterns = [
+  /\bLondon\b/i,
+  /\bManchester\b/i,
+  /\bBirmingham\b/i,
+  /\bLeeds\b/i,
+  /\bLiverpool\b/i,
+  /\bBristol\b/i,
+  /\bSheffield\b/i,
+  /\bGlasgow\b/i,
+  /\bEdinburgh\b/i,
+  /\bCardiff\b/i,
+  /\bBelfast\b/i,
+  /\bMidlands\b/i,
+  /\bYorkshire\b/i,
+  /\bSurrey\b/i,
+  /\bKent\b/i,
+  /\bEssex\b/i,
+];
+const outsideUkPatterns = [
+  /\bUSA\b/i,
+  /\bU\.S\.A\.?\b/i,
+  /\bUS\b/i,
+  /\bUnited States\b/i,
+  /\bCanada\b/i,
+  /\bAustralia\b/i,
+  /\bGermany\b/i,
+  /\bFrance\b/i,
+  /\bNetherlands\b/i,
+  /\bIndia\b/i,
+  /\bCalifornia\b/i,
+  /\bTexas\b/i,
+  /\bNew York\b/i,
+  /\bOntario\b/i,
+  /\bEU[- ]only\b/i,
 ];
 const cncPatterns = [/\bCNC\b/i, /\bmachining\b/i, /\bmill(?:ing)?\b/i, /\blathe\b/i, /\bturning\b/i, /\bfab(?:rication)?\b/i];
 const cadPatterns = [
@@ -241,7 +280,7 @@ function detectKeywords(text: string) {
   const keywords: string[] = [];
 
   if (intentPatterns.some((pattern) => pattern.test(text))) keywords.push("quote/supplier/machinist intent");
-  if (ukPatterns.some((pattern) => pattern.test(text))) keywords.push("UK mention");
+  if (ukPatterns.some((pattern) => pattern.test(text)) || ukCityRegionPatterns.some((pattern) => pattern.test(text))) keywords.push("UK mention");
   if (cncPatterns.some((pattern) => pattern.test(text))) keywords.push("CNC/machining mention");
   if (cadPatterns.some((pattern) => pattern.test(text))) keywords.push("CAD/STEP/DXF/drawing mention");
   if (materialPatterns.some((pattern) => pattern.test(text))) keywords.push("material mention");
@@ -254,11 +293,24 @@ function detectKeywords(text: string) {
   return uniq(keywords);
 }
 
-function calculateLeadScore(text: string) {
+function detectLocationSignal(text: string): LocationSignal {
+  if (ukPatterns.some((pattern) => pattern.test(text)) || ukCityRegionPatterns.some((pattern) => pattern.test(text))) {
+    return "uk";
+  }
+
+  if (outsideUkPatterns.some((pattern) => pattern.test(text))) {
+    return "outside_uk";
+  }
+
+  return "unknown";
+}
+
+function calculateLeadScore(text: string, locationSignal: LocationSignal) {
   let score = 0;
 
   if (intentPatterns.some((pattern) => pattern.test(text))) score += 5;
-  if (ukPatterns.some((pattern) => pattern.test(text))) score += 4;
+  if (locationSignal === "uk") score += 5;
+  if (locationSignal === "outside_uk") score -= 20;
   if (cncPatterns.some((pattern) => pattern.test(text))) score += 4;
   if (cadPatterns.some((pattern) => pattern.test(text))) score += 3;
   if (materialPatterns.some((pattern) => pattern.test(text))) score += 3;
@@ -345,6 +397,27 @@ function normalizeUrl(input: string, base?: string) {
   } catch {
     return null;
   }
+}
+
+function isMediaUrl(url: string) {
+  try {
+    const { hostname } = new URL(url);
+    return ["preview.redd.it", "i.redd.it", "i.imgur.com", "imgur.com"].some(
+      (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function normalizeRedditPermalink(permalink: string) {
+  const cleaned = permalink.trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const withSlash = cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
+  return normalizeUrl(withSlash, "https://www.reddit.com");
 }
 
 function parseSourceEntry(entry: string): SourceEntry | null {
@@ -463,11 +536,19 @@ function buildSuggestedReply(prelead: Omit<Prelead, "suggested_reply">) {
   ].join(" ");
 }
 
-function fromPlainText(source: SourceEntry, text: string, title: string, url: string, createdAt: string, author: string | null): Prelead {
+function fromPlainText(
+  source: SourceEntry,
+  text: string,
+  title: string,
+  url: string,
+  createdAt: string,
+  author: string | null
+): Prelead {
   const combined = `${title} ${text}`;
   const detectedKeywords = detectKeywords(combined);
   const detectedMaterials = detectMaterials(combined);
-  const leadScore = calculateLeadScore(combined);
+  const locationSignal = detectLocationSignal(combined);
+  const leadScore = calculateLeadScore(combined, locationSignal);
   const snippet = getSnippet(text, ["quote", "machin", "cnc", "cad", "step", "dxf", "drawing", "prototype", "supplier", "machinist"]);
 
   const prelead: Omit<Prelead, "suggested_reply"> = {
@@ -478,6 +559,7 @@ function fromPlainText(source: SourceEntry, text: string, title: string, url: st
     snippet,
     detected_keywords: detectedKeywords,
     detected_materials: detectedMaterials,
+    location_signal: locationSignal,
     lead_score: leadScore,
     created_at: createdAt,
   };
@@ -494,6 +576,7 @@ function itemFromHtml(source: SourceEntry, html: string, url: string): FetchedIt
     title: extractTitle(html),
     body: text,
     url,
+    sourceUrl: url,
     author: extractSourceAuthorFromHtml(html),
     createdAt: extractCreatedAtFromHtml(html),
   };
@@ -527,15 +610,14 @@ function collectRedditItems(payload: unknown, baseUrl: string): FetchedItem[] {
         : typeof typed.created === "number"
           ? new Date(typed.created * 1000).toISOString()
           : new Date().toISOString();
-    const permalink =
-      typeof typed.permalink === "string"
-        ? normalizeUrl(typed.permalink, "https://www.reddit.com") ?? baseUrl
-        : typeof typed.url === "string"
-          ? normalizeUrl(typed.url, "https://www.reddit.com") ?? baseUrl
-        : baseUrl;
+    const permalink = typeof typed.permalink === "string" ? normalizeRedditPermalink(typed.permalink) : null;
+
+    if (!permalink || isMediaUrl(permalink)) {
+      return;
+    }
 
     const text = [title, body, typeof typed.url === "string" ? typed.url : ""].filter(Boolean).join(" ").trim();
-    items.push({ title, body: text, url: permalink, author, createdAt });
+    items.push({ title, body: text, url: baseUrl, sourceUrl: permalink, author, createdAt });
   };
 
   if (Array.isArray(payload)) {
@@ -623,7 +705,7 @@ async function fetchSourceItems(source: SourceEntry, timeoutMs: number, logger: 
 }
 
 function itemToPrelead(source: SourceEntry, item: FetchedItem): Prelead {
-  return fromPlainText(source, item.body, item.title, item.url, item.createdAt, item.author);
+  return fromPlainText(source, item.body, item.title, item.sourceUrl || item.url, item.createdAt, item.author);
 }
 
 async function saveToSupabase(leads: Prelead[]) {
@@ -660,6 +742,7 @@ async function saveToSupabase(leads: Prelead[]) {
         snippet: lead.snippet,
         matched_keywords: lead.detected_keywords,
         detected_materials: lead.detected_materials,
+        location_signal: lead.location_signal,
         lead_score: lead.lead_score,
         suggested_reply: lead.suggested_reply,
         status: "new",
@@ -684,6 +767,7 @@ async function saveToJson(leads: Prelead[], outputPath: string) {
 
 export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<MonitorResult> {
   const debugEnabled = isTruthy(process.env.PRELEAD_DEBUG);
+  const includeOutsideUk = isTruthy(process.env.PRELEAD_INCLUDE_OUTSIDE_UK);
   const logger = createLogger(debugEnabled);
   const {
     persistJson = true,
@@ -697,9 +781,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   } = options;
 
   logger.info(`Debug mode: ${debugEnabled ? "on" : "off"}`);
+  logger.info(`Include outside-UK leads: ${includeOutsideUk ? "on" : "off"}`);
   const sources = (await loadSources(logger)).slice(0, maxResults);
   const leads: Prelead[] = [];
   const rejected: Prelead[] = [];
+  const rejectedOutsideUk: Prelead[] = [];
   const seen = new Set<string>();
   let rawItemsFound = 0;
   let passedThreshold = 0;
@@ -716,6 +802,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       let sourcePassed = 0;
       for (const item of items) {
         const lead = itemToPrelead(source, item);
+
+        if (lead.location_signal === "outside_uk" && !includeOutsideUk) {
+          rejectedOutsideUk.push(lead);
+          continue;
+        }
 
         if (lead.lead_score < minScore) {
           rejected.push(lead);
@@ -746,12 +837,27 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   logger.info(`Passing score threshold: ${passedThreshold}`);
   logger.info(`Qualifying unique leads: ${leads.length}`);
 
+  if (debugEnabled && rejectedOutsideUk.length > 0) {
+    const topRejectedOutsideUk = rejectedOutsideUk.sort((a, b) => b.lead_score - a.lead_score).slice(0, 8);
+    logger.debug(
+      "Top rejected outside-UK leads:",
+      topRejectedOutsideUk.map((lead) => ({
+        score: lead.lead_score,
+        location_signal: lead.location_signal,
+        title: lead.title,
+        url: lead.source_url,
+        keywords: lead.detected_keywords,
+      }))
+    );
+  }
+
   if (debugEnabled && rejected.length > 0) {
     const topRejected = rejected.sort((a, b) => b.lead_score - a.lead_score).slice(0, 8);
     logger.debug(
       "Top rejected leads:",
       topRejected.map((lead) => ({
         score: lead.lead_score,
+        location_signal: lead.location_signal,
         title: lead.title,
         url: lead.source_url,
         keywords: lead.detected_keywords,

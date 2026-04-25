@@ -56,6 +56,7 @@ type PreLeadRecord = {
   snippet: string;
   matched_keywords: string[] | null;
   detected_materials: string[] | null;
+  location_signal: string | null;
   lead_score: number;
   suggested_reply: string;
   status: string | null;
@@ -102,6 +103,10 @@ function LeadCard({ lead }: { lead: PreLeadRecord }) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Detected materials</p>
           <p className="mt-1 text-slate-700">{lead.detected_materials?.join(", ") || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Location signal</p>
+          <p className="mt-1 text-slate-700">{lead.location_signal || "unknown"}</p>
         </div>
       </div>
 
