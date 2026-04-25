@@ -16,15 +16,24 @@ export async function GET(req: Request) {
   }
 
   const result = await runPreleadMonitor({
-    persistJson: true,
+    persistJson: false,
     persistSupabase: true,
     sendEmail: true,
-    minScore: 6,
+    minScore: Number(process.env.PRELEAD_MIN_SCORE ?? 6),
+    maxResults: Number(process.env.PRELEAD_MAX_RESULTS ?? 10),
   });
+
+  if (result.qualifying === 0) {
+    return NextResponse.json({
+      success: true,
+      qualifying: 0,
+      savedToSupabase: 0,
+      emailed: false,
+    });
+  }
 
   return NextResponse.json({
     success: true,
-    scanned: result.scanned,
     qualifying: result.qualifying,
     savedToSupabase: result.savedToSupabase,
     emailed: result.emailed,

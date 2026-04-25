@@ -679,6 +679,9 @@ async function fetchSourceItems(source: SourceEntry, timeoutMs: number, logger: 
     logger.debug(`HTTP ${response.status} for ${fetchUrl}`);
 
     if (!response.ok) {
+      if (response.status === 403) {
+        logger.warn(`Source blocked or requires official API: ${fetchUrl}`);
+      }
       throw new Error(`HTTP ${response.status}`);
     }
 
