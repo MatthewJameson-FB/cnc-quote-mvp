@@ -1,35 +1,117 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  defaultQuoteStatus,
-  quoteStatusOptions,
-  type QuoteStatus,
-} from "@/lib/quote-statuses";
+import { defaultQuoteStatus, quoteStatusOptions, type QuoteStatus } from "@/lib/quote-statuses";
 import { sendIntroductionEmail } from "@/lib/notifications";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 
 const allowedStatuses = new Set<QuoteStatus>(
   quoteStatusOptions.map((option) => option.value)
 );
+type InvoiceStatus = "unbilled" | "invoiced" | "paid";
+const allowedInvoiceStatuses = new Set<InvoiceStatus>(["unbilled", "invoiced", "paid"]);
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function parseOptionalNumber(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    throw new Error("Invalid number.");
+  }
+
+  return parsed;
+}
 
 export async function updateQuoteStatus(formData: FormData) {
   const quoteId = String(formData.get("quoteId") ?? "").trim();
-  const status = String(formData.get("status") ?? defaultQuoteStatus).trim();
+  const status = String(formData.get("status") ?? defaultQuoteStatus).trim() as QuoteStatus;
 
   if (!quoteId) {
     throw new Error("Missing quote id.");
   }
 
-  if (!allowedStatuses.has(status as QuoteStatus)) {
+  if (!allowedStatuses.has(status)) {
     throw new Error("Invalid quote status.");
+  }
+
+  const update: Record<string, unknown> = { status };
+
+  if (status === "quoted") {
+    update.quoted_at = nowIso();
+  }
+
+  if (status === "won") {
+    update.won_at = nowIso();
+  }
+
+  if (status === "lost") {
+    update.lost_at = nowIso();
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("quotes").update(update).eq("id", quoteId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/internal-admin");
+}
+
+export async function updateQuoteJobValue(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "").trim();
+  const jobValue = parseOptionalNumber(formData.get("jobValue"));
+
+  if (!quoteId) {
+    throw new Error("Missing quote id.");
   }
 
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase
     .from("quotes")
-    .update({ status })
+    .update({ job_value: jobValue })
     .eq("id", quoteId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/internal-admin");
+}
+
+export async function updateInvoiceStatus(formData: FormData) {
+  const quoteId = String(formData.get("quoteId") ?? "").trim();
+  const invoiceStatus = String(formData.get("invoiceStatus") ?? "unbilled").trim();
+
+  if (!quoteId) {
+    throw new Error("Missing quote id.");
+  }
+
+  if (!allowedInvoiceStatuses.has(invoiceStatus as InvoiceStatus)) {
+    throw new Error("Invalid invoice status.");
+  }
+
+  const update: Record<string, unknown> = { invoice_status: invoiceStatus };
+
+  if (invoiceStatus === "invoiced") {
+    update.invoiced_at = nowIso();
+  }
+
+  if (invoiceStatus === "paid") {
+    update.invoiced_at = nowIso();
+    update.paid_at = nowIso();
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("quotes").update(update).eq("id", quoteId);
 
   if (error) {
     throw new Error(error.message);
@@ -68,7 +150,7 @@ export async function introduceQuoteToPartner(formData: FormData) {
     .from("quotes")
     .update({
       introduced: true,
-      introduced_at: new Date().toISOString(),
+      introduced_at: nowIso(),
       partner_accept_token: partnerAcceptToken,
       partner_accepted: false,
       accepted_at: null,

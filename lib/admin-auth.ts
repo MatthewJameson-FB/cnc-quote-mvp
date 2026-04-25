@@ -42,17 +42,33 @@ export function isAllowedAdminEmail(email: string | null | undefined) {
 export async function getAuthenticatedAdminUser(): Promise<User | null> {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get(ADMIN_ACCESS_COOKIE)?.value;
-
-  if (!accessToken) {
-    return null;
-  }
+  const refreshToken = cookieStore.get(ADMIN_REFRESH_COOKIE)?.value;
 
   const supabase = getSupabaseAuthClient();
-  const { data, error } = await supabase.auth.getUser(accessToken);
 
-  if (error || !data.user) {
+  if (accessToken) {
+    const { data, error } = await supabase.auth.getUser(accessToken);
+
+    if (!error && data.user) {
+      return data.user;
+    }
+  }
+
+  if (!refreshToken) {
     return null;
   }
+
+  const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+
+  if (error || !data.user || !data.session) {
+    return null;
+  }
+
+  await setAdminSessionCookies({
+    accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token,
+    expiresIn: data.session.expires_in,
+  });
 
   return data.user;
 }
