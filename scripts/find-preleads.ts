@@ -1,4 +1,6 @@
-import { runPreleadMonitor, defaultPreleadOutputPath } from "@/lib/preleads";
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(process.cwd());
 
 /**
  * Pre-lead finder.
@@ -11,6 +13,8 @@ import { runPreleadMonitor, defaultPreleadOutputPath } from "@/lib/preleads";
  */
 
 async function main() {
+  const { runPreleadMonitor, defaultPreleadOutputPath } = await import("@/lib/preleads");
+
   const result = await runPreleadMonitor({
     persistJson: true,
     persistSupabase: true,

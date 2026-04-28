@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "find:preleads": "tsx scripts/find-preleads.ts"
+    "find:preleads": "tsx scripts/find-preleads.ts",
+    "analyze:preleads": "tsx scripts/analyze-prelead-learning.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",

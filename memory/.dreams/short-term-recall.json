@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-25T11:18:12.934Z",
+  "updatedAt": "2026-04-28T21:08:05.260Z",
   "entries": {
     "memory:memory/2026-04-25.md:1:4": {
       "key": "memory:memory/2026-04-25.md:1:4",
@@ -21,6 +21,69 @@
       ],
       "recallDays": [
         "2026-04-25"
+      ],
+      "conceptTags": [
+        "internal-admin",
+        "email/password",
+        "admin-emails",
+        "lead/revenue/invoice",
+        "pre-lead",
+        "pre-leads",
+        "search/media",
+        "flangie"
+      ]
+    },
+    "memory:memory/2026-04-28.md:1:6": {
+      "key": "memory:memory/2026-04-28.md:1:6",
+      "path": "memory/2026-04-28.md",
+      "startLine": 1,
+      "endLine": 6,
+      "source": "memory",
+      "snippet": "# 2026-04-28 - User is working on the Flangie CNC lead-generation system in a Next.js App Router + Supabase app. - User prefers very low-token progress updates: one short line with done/next/blocker/need-from-you style. - Prelead pipeline work has focused on SerpAPI discovery, stricter lead qualification, and later an AI classifier layer to reject irrelevant posts. - The user asked to continue implementing the AI classifier for prelead filtering.",
+      "recallCount": 2,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.8371645629405975,
+      "maxScore": 0.42559575140476225,
+      "firstRecalledAt": "2026-04-28T20:01:46.687Z",
+      "lastRecalledAt": "2026-04-28T21:08:05.260Z",
+      "queryHashes": [
+        "0ad5bda047ad",
+        "4f74bed8e320"
+      ],
+      "recallDays": [
+        "2026-04-28"
+      ],
+      "conceptTags": [
+        "router",
+        "lead-generation",
+        "next.js",
+        "low-token",
+        "done/next/blocker/need-from-you",
+        "working",
+        "flangie",
+        "cnc"
+      ]
+    },
+    "memory:memory/2026-04-25.md:1:10": {
+      "key": "memory:memory/2026-04-25.md:1:10",
+      "path": "memory/2026-04-25.md",
+      "startLine": 1,
+      "endLine": 10,
+      "source": "memory",
+      "snippet": "- Flangie CNC quote app: admin area moved to `/internal-admin`, with Supabase email/password login and allowlist via `ADMIN_EMAILS`. - Added lead/revenue/invoice tracking for `quotes` and a pre-lead monitoring pipeline (`pre_leads`, cron route, summary email, review dashboard). - User wants the pre-lead finder to store clean Reddit post permalinks, not search/media URLs. - Flangie CNC quote app: admin area moved to `/internal-admin`, with Supabase email/password login and allowlist via `ADMIN_EMAILS`. - Added lead/revenue/invoice tracking for `quotes` and a pre-lead monitoring pipeline (`pre_leads`, cron route, summary email, review dashboard). - User wants the pre-lead finder to store clean",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.35218241810798645,
+      "maxScore": 0.35218241810798645,
+      "firstRecalledAt": "2026-04-28T20:01:46.687Z",
+      "lastRecalledAt": "2026-04-28T20:01:46.687Z",
+      "queryHashes": [
+        "0ad5bda047ad"
+      ],
+      "recallDays": [
+        "2026-04-28"
       ],
       "conceptTags": [
         "internal-admin",
