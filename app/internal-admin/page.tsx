@@ -10,9 +10,7 @@ import {
   introduceQuoteToPartner,
   saveCommercialQuoteFields,
   updateCommercialQuoteStatus,
-  updateInvoiceStatus,
   updateQuoteJobValue,
-  updateQuoteStatus,
 } from "../admin/actions";
 import { signOut } from "../login/actions";
 
@@ -78,7 +76,7 @@ const invoiceTone: Record<string, string> = {
 
 const commercialQuoteTone: Record<string, string> = {
   submitted: "bg-slate-100 text-slate-800 ring-1 ring-slate-200",
-  estimate_accepted: "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-200",
+  awaiting_final_details: "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-200",
   sent_to_supplier: "bg-blue-100 text-blue-900 ring-1 ring-blue-200",
   supplier_accepted: "bg-indigo-100 text-indigo-900 ring-1 ring-indigo-200",
   customer_accepted: "bg-violet-100 text-violet-900 ring-1 ring-violet-200",
@@ -144,6 +142,51 @@ function formatEstimateRange(quote: QuoteRecord) {
 
 function commercialQuoteStatus(quote: QuoteRecord) {
   return quote.quote_status || extractNoteValue(quote.notes, "quote_status") || "submitted";
+}
+
+function stageValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "stage") || "—";
+}
+
+function routingValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "routing_decision") || "review";
+}
+
+function manufacturingTypeValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "manufacturing_type") || quote.material || "—";
+}
+
+function labelStage(stage: string) {
+  if (stage === "needs_cad" || stage === "needs_file") return "Needs CAD recreation";
+  if (stage === "needs_print") return "Ready for supplier quote";
+  if (stage === "needs_both") return "Needs review (file + photos)";
+  return stage;
+}
+
+function labelRouting(routing: string) {
+  if (routing === "cad_required") return "Needs CAD recreation";
+  if (routing === "3d_print" || routing === "cnc") return "Ready for supplier quote";
+  return "Review";
+}
+
+function labelManufacturingType(type: string) {
+  if (type === "3d_print") return "3D print";
+  if (type === "cnc") return "CNC";
+  if (type === "fabrication") return "Fabrication";
+  return type;
+}
+
+function labelCommercialStatus(status: string) {
+  if (status === "awaiting_final_details") return "Awaiting final details";
+  if (status === "sent_to_supplier") return "Sent to supplier";
+  if (status === "submitted") return "Submitted";
+  if (status === "supplier_accepted") return "Supplier accepted";
+  if (status === "customer_accepted") return "Customer accepted";
+  if (status === "invoice_sent") return "Invoice sent";
+  if (status === "paid") return "Paid";
+  if (status === "completed") return "Completed";
+  if (status === "lost") return "Lost";
+  return status;
 }
 
 function supplierFeeStatus(quote: QuoteRecord) {
@@ -219,7 +262,7 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
           <Badge tone={statusTone[status]}>{displayStatusLabel(status)}</Badge>
           <div className="mt-2 flex flex-wrap justify-end gap-2">
             <Badge tone={commercialQuoteTone[commercialStatus] ?? commercialQuoteTone.submitted}>
-              {commercialStatus}
+              {labelCommercialStatus(commercialStatus)}
             </Badge>
             <Badge tone={supplierFeeTone[feeStatus] ?? supplierFeeTone.not_due}>{feeStatus}</Badge>
           </div>
@@ -266,6 +309,22 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
           <dd className="font-medium text-slate-900">
             {formatMoney(quote.job_value)}
           </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Stage</dt>
+          <dd className="font-medium text-slate-900">{labelStage(stageValue(quote))}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Routing</dt>
+          <dd className="font-medium text-slate-900">{labelRouting(routingValue(quote))}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Manufacturing</dt>
+          <dd className="font-medium text-slate-900">{labelManufacturingType(manufacturingTypeValue(quote))}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Quote status</dt>
+          <dd className="font-medium text-slate-900">{labelCommercialStatus(commercialStatus)}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Customer estimate</dt>
@@ -404,6 +463,13 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
           <div className="flex flex-wrap gap-2">
             <form action={updateCommercialQuoteStatus}>
               <input type="hidden" name="quoteId" value={quote.id} />
+              <input type="hidden" name="quoteStatus" value="awaiting_final_details" />
+              <button className="rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900 hover:bg-cyan-100">
+                Mark awaiting final details
+              </button>
+            </form>
+            <form action={updateCommercialQuoteStatus}>
+              <input type="hidden" name="quoteId" value={quote.id} />
               <input type="hidden" name="quoteStatus" value="sent_to_supplier" />
               <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                 Mark sent to supplier
@@ -435,30 +501,6 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
               <input type="hidden" name="quoteStatus" value="lost" />
               <button className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
                 Mark lost
-              </button>
-            </form>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <form action={updateQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="status" value="quoted" />
-              <button className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">
-                Mark as quoted
-              </button>
-            </form>
-            <form action={updateQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="status" value="won" />
-              <button className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-                Mark as won
-              </button>
-            </form>
-            <form action={updateQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="status" value="lost" />
-              <button className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-                Mark as lost
               </button>
             </form>
           </div>
@@ -527,23 +569,6 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
               <p>Invoiced: {formatDate(quote.invoiced_at)}</p>
               <p>Paid: {formatDate(quote.paid_at)}</p>
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <form action={updateInvoiceStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="invoiceStatus" value="invoiced" />
-              <button className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
-                Mark as invoiced
-              </button>
-            </form>
-            <form action={updateInvoiceStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="invoiceStatus" value="paid" />
-              <button className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100">
-                Mark as paid
-              </button>
-            </form>
           </div>
 
           <div>

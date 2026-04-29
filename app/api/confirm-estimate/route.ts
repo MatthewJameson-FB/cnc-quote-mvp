@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { sendFinalDetailsChecklistEmail } from "@/lib/notifications";
 import {
   appendPreleadLearningLog,
   createPreleadConversionLearningLogRow,
@@ -45,9 +46,9 @@ function successPage(decision: "yes" | "no") {
     return htmlPage(
       "Estimate confirmed",
       `
-        <h1>Thanks — we’ll now look for an exact supplier quote.</h1>
+        <h1>Thanks — we’ll email you for the final details we need.</h1>
         <p>We’ve recorded that the rough estimate looks reasonable.</p>
-        <p class="muted">Next step: we’ll review the request and try to place it with a suitable supplier.</p>
+        <p class="muted">Next step: reply to our checklist email with the key dimensions, fit details, material and quantity so we can prepare an exact quote.</p>
       `
     );
   }
@@ -86,11 +87,11 @@ function appendDecisionNote(existingNotes: string | null, decision: "yes" | "no"
     "--- estimate confirmation ---",
     `decision: ${decision}`,
     `estimate_accepted: ${decision === "yes" ? "true" : "false"}`,
-    decision === "yes" ? "quote_status: estimate_accepted" : null,
+    decision === "yes" ? "quote_status: awaiting_final_details" : null,
     `timestamp: ${new Date().toISOString()}`,
     decision === "yes" && preleadId ? "prelead_converted: true" : null,
     decision === "yes" && preleadId ? "conversion_status: ready_for_supplier" : null,
-    decision === "yes" ? "internal_status: ready_for_supplier" : "internal_status: estimate_declined",
+    decision === "yes" ? "internal_status: awaiting_final_details" : "internal_status: estimate_declined",
   ].filter(Boolean);
 
   return lines.join("\n");
@@ -105,6 +106,10 @@ function isMissingColumnError(error: unknown) {
         : String(error ?? "");
 
   return /column .* does not exist|could not find the .* column|schema cache/i.test(message);
+}
+
+function isDebugEnabled() {
+  return /^(1|true|yes|on)$/i.test(String(process.env.PRELEAD_DEBUG ?? "").trim());
 }
 
 export async function GET(request: Request) {
@@ -130,7 +135,7 @@ export async function GET(request: Request) {
     const supabase = createSupabaseAdminClient();
     const { data: quote, error } = await supabase
       .from("quotes")
-      .select("id, quote_ref, notes")
+      .select("id, quote_ref, notes, email, name, material, quantity")
       .eq("id", id)
       .maybeSingle();
 
@@ -157,7 +162,7 @@ export async function GET(request: Request) {
     const commercialUpdatePayload: Record<string, unknown> = { notes: updatedNotes };
 
     if (decision === "yes") {
-      commercialUpdatePayload.quote_status = "estimate_accepted";
+      commercialUpdatePayload.quote_status = "awaiting_final_details";
     }
 
     let { error: updateError } = await supabase
@@ -175,8 +180,22 @@ export async function GET(request: Request) {
     }
 
     console.log(`estimate_confirmation quote_id=${id} decision=${decision}`);
+    if (isDebugEnabled()) {
+      console.log(`quote_status_change quote_id=${id} quote_status=${decision === "yes" ? "awaiting_final_details" : "unchanged"}`);
+    }
     if (preleadId && decision === "yes") {
       console.log(`prelead_converted: true prelead_id=${preleadId} quote_id=${id}`);
+    }
+
+    if (decision === "yes" && quote.email) {
+      void sendFinalDetailsChecklistEmail({
+        email: quote.email,
+        name: quote.name ?? undefined,
+        material: quote.material ?? undefined,
+        quantity: quote.quantity ?? undefined,
+      }).catch((emailError) => {
+        console.error("FINAL DETAILS CHECKLIST EMAIL ERROR:", emailError);
+      });
     }
 
     if (preleadId) {

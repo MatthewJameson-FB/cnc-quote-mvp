@@ -12,10 +12,7 @@ function QuoteIntakeFallback() {
                 Get your custom part made
               </h1>
               <p className="text-lg leading-8 text-slate-300 sm:text-xl">
-                Upload a file or photos — we&apos;ll handle CAD, 3D printing, CNC, or fabrication.
-              </p>
-              <p className="text-base leading-7 text-slate-400">
-                No CAD file? Upload photos with one measurement — we can recreate it.
+                Upload a file for the fastest quote, or upload photos if the part needs recreating.
               </p>
             </div>
           </section>

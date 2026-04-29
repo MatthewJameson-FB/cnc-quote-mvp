@@ -10,7 +10,7 @@ const allowedStatuses = new Set<QuoteStatus>(
 );
 type CommercialQuoteStatus =
   | "submitted"
-  | "estimate_accepted"
+  | "awaiting_final_details"
   | "sent_to_supplier"
   | "supplier_accepted"
   | "customer_accepted"
@@ -21,7 +21,7 @@ type CommercialQuoteStatus =
 
 const allowedCommercialQuoteStatuses = new Set<CommercialQuoteStatus>([
   "submitted",
-  "estimate_accepted",
+  "awaiting_final_details",
   "sent_to_supplier",
   "supplier_accepted",
   "customer_accepted",
@@ -46,6 +46,10 @@ const allowedInvoiceStatuses = new Set<InvoiceStatus>(["unbilled", "invoiced", "
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function isDebugEnabled() {
+  return /^(1|true|yes|on)$/i.test(String(process.env.PRELEAD_DEBUG ?? "").trim());
 }
 
 function parseOptionalNumber(value: FormDataEntryValue | null) {
@@ -238,6 +242,10 @@ export async function updateCommercialQuoteStatus(formData: FormData) {
 
   if (quoteStatus === "supplier_accepted") {
     update.supplier_fee_status = "due";
+  }
+
+  if (isDebugEnabled()) {
+    console.log(`quote_status_change quote_id=${quoteId} quote_status=${quoteStatus}`);
   }
 
   await updateQuoteWithCommercialFallback(quoteId, update, "commercial status", [

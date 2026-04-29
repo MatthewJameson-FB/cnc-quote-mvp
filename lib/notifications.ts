@@ -42,6 +42,13 @@ type IntroductionEmailDetails = {
   fileUrl?: string | null;
 };
 
+type FinalDetailsChecklistDetails = {
+  email: string;
+  name?: string;
+  material?: string | null;
+  quantity?: number | null;
+};
+
 type PreleadSummaryItem = {
   source: string;
   source_url: string;
@@ -108,23 +115,25 @@ async function sendResendEmail({
   return { sent: true, skipped: false };
 }
 
-function quoteSummary(details: QuoteNotificationDetails) {
-  return [
-    `Name: ${details.name}`,
-    `Email: ${details.email}`,
-    details.companyName ? `Company: ${details.companyName}` : null,
-    details.phone ? `Phone: ${details.phone}` : null,
-    `Material: ${details.material}`,
-    `Complexity: ${details.complexity}`,
-    `Approx volume: ${details.volumeCm3} cm³`,
-    `Quantity: ${details.quantity}`,
-    details.notes ? `Notes: ${details.notes}` : null,
-    `Indicative quote: £${details.quoteLow}–£${details.quoteHigh} inc. VAT`,
-    `Total inc. VAT: £${details.quoteTotal}`,
-    "Status: Pending engineering review",
-  ]
-    .filter(Boolean)
-    .join("\n");
+function stageLabel(stage?: string) {
+  if (stage === "needs_cad" || stage === "needs_file") return "Needs CAD recreation";
+  if (stage === "needs_print") return "Ready for supplier quote";
+  if (stage === "needs_both") return "Needs review (file + photos)";
+  return stage || "—";
+}
+
+function routingLabel(routingDecision?: string) {
+  if (routingDecision === "cad_required") return "Needs CAD recreation";
+  if (routingDecision === "3d_print") return "Ready for supplier quote (3D print)";
+  if (routingDecision === "cnc") return "Ready for supplier quote (CNC)";
+  return routingDecision || "Review";
+}
+
+function manufacturingTypeLabel(type?: string) {
+  if (type === "3d_print") return "3D print";
+  if (type === "cnc") return "CNC";
+  if (type === "fabrication") return "Fabrication";
+  return type || "—";
 }
 
 function actionHint(details: QuoteNotificationDetails) {
@@ -258,9 +267,9 @@ function internalQuoteEmailText(details: QuoteNotificationDetails) {
     `Company: ${details.companyName || "—"}`,
     `Material: ${details.material}`,
     `Quantity: ${details.quantity}`,
-    `Stage: ${details.stage || "—"}`,
-    `Manufacturing type: ${details.manufacturingType || "—"}`,
-    `Routing decision: ${details.routingDecision || "—"}`,
+    `Stage: ${stageLabel(details.stage)}`,
+    `Manufacturing type: ${manufacturingTypeLabel(details.manufacturingType)}`,
+    `Routing decision: ${routingLabel(details.routingDecision)}`,
     "",
     `Rough estimate: ${renderEstimateSummary(details)}`,
     `Confidence: ${details.estimate?.confidence || "—"}`,
@@ -284,7 +293,7 @@ function internalQuoteEmailText(details: QuoteNotificationDetails) {
     actionHint(details),
     details.confirmationYesUrl ? `Accept estimate: ${details.confirmationYesUrl}` : null,
     details.confirmationNoUrl ? `Reject estimate: ${details.confirmationNoUrl}` : null,
-    details.confirmationYesUrl ? "If accepted, this becomes ready_for_supplier." : null,
+    details.confirmationYesUrl ? "If accepted, this moves to awaiting_final_details and a checklist email is sent." : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -325,9 +334,9 @@ function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
         <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
           <h2 style="margin:0 0 16px;font-size:18px">Stage / routing</h2>
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-            ${renderDetailRow("Stage", details.stage || "—")}
-            ${renderDetailRow("Manufacturing type", details.manufacturingType || "—")}
-            ${renderDetailRow("Routing decision", details.routingDecision || "—")}
+            ${renderDetailRow("Stage", stageLabel(details.stage))}
+            ${renderDetailRow("Manufacturing type", manufacturingTypeLabel(details.manufacturingType))}
+            ${renderDetailRow("Routing decision", routingLabel(details.routingDecision))}
           </table>
         </div>
 
@@ -374,7 +383,7 @@ function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
         <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
           <h2 style="margin:0 0 12px;font-size:18px">Next action</h2>
           <div style="display:inline-block;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;color:#1d4ed8;font-weight:600">${escapeHtml(actionHint(details))}</div>
-          <p style="margin:12px 0 0;color:#475569;font-size:14px">If accepted, this becomes ready_for_supplier.</p>
+          <p style="margin:12px 0 0;color:#475569;font-size:14px">If accepted, this moves to awaiting final details and triggers a checklist email.</p>
           ${renderActionButtons(details.confirmationYesUrl, details.confirmationNoUrl)}
         </div>
       </div>
@@ -384,7 +393,6 @@ function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
 
 export async function sendQuoteNotifications(details: QuoteNotificationDetails) {
   const internalEmail = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
-  const summary = quoteSummary(details);
 
   const tasks = [
     sendResendEmail({
@@ -412,6 +420,66 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
     customer: results[0],
     internal: results[1] ?? null,
   };
+}
+
+export async function sendFinalDetailsChecklistEmail(details: FinalDetailsChecklistDetails) {
+  const greetingName = details.name?.trim() || "there";
+  const materialLine = details.material ? `- material preference: ${details.material}` : null;
+  const quantityLine = details.quantity ? `- quantity: ${details.quantity}` : null;
+
+  const text = [
+    `Hi ${greetingName},`,
+    "",
+    "Thanks for confirming that the rough estimate looks reasonable.",
+    "",
+    "Before we send this for an exact quote, please reply with any final details you have:",
+    "- key dimensions in mm",
+    "- what the part connects to / how it is used",
+    "- critical fit areas",
+    "- material preference",
+    "- quantity",
+    "- finish preference",
+    "- extra photos if needed",
+    "",
+    materialLine,
+    quantityLine,
+    "",
+    "A simple email reply is fine.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const html = `
+    <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">
+      <div style="max-width:640px;margin:0 auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
+        <h2 style="margin:0 0 12px;font-size:28px">A few final details before we quote</h2>
+        <p style="margin:0 0 12px">Hi ${escapeHtml(greetingName)},</p>
+        <p style="margin:0 0 12px">Thanks for confirming that the rough estimate looks reasonable.</p>
+        <p style="margin:0 0 12px">Before we send this for an exact quote, please reply with any final details you have:</p>
+        <ul style="margin:0 0 16px 20px;padding:0;color:#334155">
+          <li>key dimensions in mm</li>
+          <li>what the part connects to / how it is used</li>
+          <li>critical fit areas</li>
+          <li>material preference</li>
+          <li>quantity</li>
+          <li>finish preference</li>
+          <li>extra photos if needed</li>
+        </ul>
+        ${(materialLine || quantityLine) ? `<div style="padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#475569">
+          ${materialLine ? `<div>${escapeHtml(materialLine.replace(/^-\s*/, ""))}</div>` : ""}
+          ${quantityLine ? `<div>${escapeHtml(quantityLine.replace(/^-\s*/, ""))}</div>` : ""}
+        </div>` : ""}
+        <p style="margin:16px 0 0;color:#64748b">A simple email reply is fine.</p>
+      </div>
+    </div>
+  `;
+
+  return sendResendEmail({
+    to: details.email,
+    subject: "A few final details before we quote your part",
+    text,
+    html,
+  });
 }
 
 export async function sendIntroductionEmail(details: IntroductionEmailDetails) {

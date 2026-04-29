@@ -8,8 +8,11 @@ import {
   createPreleadConversionLearningLogRow,
 } from "@/lib/prelead-learning-log";
 import {
+  descriptionPresent,
   determineStage,
   inferManufacturingType,
+  measurementsPresent,
+  normalizeStage,
   routeLead,
   validateLeadIntake,
   type IntakeMaterialPreference,
@@ -155,6 +158,8 @@ function buildIntakeNotes({
     `manufacturing_type: ${manufacturingType}`,
     `routing_decision: ${routingDecision}`,
     `part_candidate: ${partCandidate ? "true" : "false"}`,
+    `measurements_present: ${measurementsPresent(measurements) ? "true" : "false"}`,
+    `description_present: ${descriptionPresent(description) ? "true" : "false"}`,
     intakeValidationReason ? `intake_validation_reason: ${intakeValidationReason}` : null,
     measurements ? `measurements: ${measurements}` : null,
     description ? `description: ${description}` : null,
@@ -184,7 +189,9 @@ export async function POST(req: Request) {
     const quantity = Number(formData.get("quantity")) || 1;
     const hasFile = file instanceof File && file.size > 0 ? true : parseBoolean(formData.get("has_file"));
     const hasPhotos = photos.length > 0 ? true : parseBoolean(formData.get("has_photos"));
-    const stage = determineStage(hasFile, hasPhotos);
+    const stage = normalizeStage(cleanString(formData.get("stage"))) !== "unknown"
+      ? normalizeStage(cleanString(formData.get("stage")))
+      : determineStage(hasFile, hasPhotos);
     const manufacturingType = (cleanString(formData.get("manufacturing_type")) as ManufacturingType) || inferManufacturingType(material, hasFile);
     const routingDecision = routeLead({ stage, manufacturing_type: manufacturingType });
     const intakeValidation = validateLeadIntake({
@@ -195,6 +202,8 @@ export async function POST(req: Request) {
     });
     const intakeValidationReason = intakeValidation.reason;
     const partCandidate = routingDecision === "cad_required";
+    const measurementsReady = measurementsPresent(measurements);
+    const descriptionReady = descriptionPresent(description);
     const estimate = estimateQuote({
       manufacturing_type: manufacturingType,
       material,
@@ -208,7 +217,7 @@ export async function POST(req: Request) {
 
     if (isDebugEnabled()) {
       console.log(
-        `[preleads:debug] query_used=manual_intake has_file=${hasFile ? "yes" : "no"} has_photos=${hasPhotos ? "yes" : "no"} stage=${stage} material=${material} manufacturing_type=${manufacturingType} routing_decision=${routingDecision} estimate=£${estimate.min_price}-£${estimate.max_price} confidence=${estimate.confidence} intake_validation_reason=${intakeValidationReason ?? "ok"}`
+        `[preleads:debug] query_used=manual_intake has_file=${hasFile ? "yes" : "no"} has_photos=${hasPhotos ? "yes" : "no"} stage=${stage} material=${material} manufacturing_type=${manufacturingType} routing_decision=${routingDecision} measurements_present=${measurementsReady ? "yes" : "no"} description_present=${descriptionReady ? "yes" : "no"} estimate=£${estimate.min_price}-£${estimate.max_price} confidence=${estimate.confidence} intake_validation_reason=${intakeValidationReason ?? "ok"}`
       );
       if (preleadId) {
         console.log(`[preleads:debug] linked_prelead_id=${preleadId}`);
@@ -342,6 +351,10 @@ export async function POST(req: Request) {
       if (commercialTrackingError && !isMissingColumnError(commercialTrackingError)) {
         console.warn("COMMERCIAL TRACKING UPDATE ERROR:", commercialTrackingError);
       }
+
+      if (isDebugEnabled()) {
+        console.log(`quote_status_change quote_id=${quoteId} quote_status=submitted`);
+      }
     }
 
     const baseUrl = getAppBaseUrl();
@@ -411,6 +424,8 @@ export async function POST(req: Request) {
       material,
       manufacturing_type: manufacturingType,
       routing_decision: routingDecision,
+      measurements_present: measurementsReady,
+      description_present: descriptionReady,
       part_candidate: partCandidate,
       intake_validation_reason: intakeValidationReason,
       estimate,

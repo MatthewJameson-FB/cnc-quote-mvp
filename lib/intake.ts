@@ -1,4 +1,4 @@
-export type LeadStage = "needs_file" | "needs_print" | "needs_both" | "unknown";
+export type LeadStage = "needs_file" | "needs_cad" | "needs_print" | "needs_both" | "unknown";
 
 export type ManufacturingType = "3d_print" | "cnc" | "fabrication" | "unknown";
 
@@ -20,6 +20,8 @@ export type IntakeMaterialPreference =
 export type LeadIntake = {
   has_file?: boolean;
   has_photos?: boolean;
+  measurements_present?: boolean;
+  description_present?: boolean;
   stage?: LeadStage;
   manufacturing_type?: ManufacturingType;
   file_url?: string;
@@ -31,26 +33,34 @@ export type LeadIntake = {
   intake_validation_reason?: string;
 };
 
+export function normalizeStage(stage?: string | null): LeadStage {
+  if (stage === "needs_file") return "needs_cad";
+  if (stage === "needs_cad" || stage === "needs_print" || stage === "needs_both") return stage;
+  return "unknown";
+}
+
 export function determineStage(hasFile: boolean, hasPhotos: boolean): LeadStage {
   if (hasFile && hasPhotos) return "needs_both";
   if (hasFile && !hasPhotos) return "needs_print";
-  if (!hasFile && hasPhotos) return "needs_file";
+  if (!hasFile && hasPhotos) return "needs_cad";
   return "unknown";
 }
 
 export function routeLead(lead: Pick<LeadIntake, "stage" | "manufacturing_type">): RoutingDecision {
-  if (lead.stage === "needs_file") {
+  const stage = normalizeStage(lead.stage);
+
+  if (stage === "needs_cad") {
     return "cad_required";
   }
 
-  if (lead.stage === "needs_print") {
+  if (stage === "needs_print") {
     if (lead.manufacturing_type === "3d_print") return "3d_print";
     if (lead.manufacturing_type === "cnc") return "cnc";
     return "review";
   }
 
-  if (lead.stage === "needs_both") {
-    return "cad_required";
+  if (stage === "needs_both") {
+    return lead.manufacturing_type === "unknown" ? "cad_required" : "review";
   }
 
   return "review";
@@ -93,4 +103,8 @@ export function inferManufacturingType(material: IntakeMaterialPreference, hasFi
 
 export function measurementsPresent(measurements?: string | null) {
   return Boolean(measurements?.trim());
+}
+
+export function descriptionPresent(description?: string | null) {
+  return Boolean(description?.trim());
 }

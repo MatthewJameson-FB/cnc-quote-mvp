@@ -5,8 +5,10 @@ import { useMemo, useRef, useState } from "react";
 import { calculateQuote, type Material, type Complexity } from "@/lib/pricing";
 import type { EstimateQuoteResult } from "@/lib/estimate-quote";
 import {
+  descriptionPresent,
   determineStage,
   inferManufacturingType,
+  measurementsPresent,
   routeLead,
   validateLeadIntake,
   type IntakeMaterialPreference,
@@ -135,6 +137,8 @@ export default function QuoteIntakeForm() {
   const hasFile = Boolean(file);
   const hasPhotos = photos.length > 0;
   const stage = determineStage(hasFile, hasPhotos);
+  const measurementsReady = measurementsPresent(measurement);
+  const descriptionReady = descriptionPresent(description);
   const manufacturingType = inferManufacturingType(material, hasFile);
   const routingDecision = routeLead({ stage, manufacturing_type: manufacturingType });
   const intakeValidation = validateLeadIntake({
@@ -242,10 +246,7 @@ export default function QuoteIntakeForm() {
                 Get your custom part made
               </h1>
               <p className="text-lg leading-8 text-slate-300 sm:text-xl">
-                Upload a file or photos — we&apos;ll handle CAD, 3D printing, CNC, or fabrication.
-              </p>
-              <p className="text-base leading-7 text-slate-400">
-                No CAD file? Upload photos with one measurement — we can recreate it.
+                Upload a file for the fastest quote, or upload photos if the part needs recreating.
               </p>
             </div>
 
@@ -263,6 +264,27 @@ export default function QuoteIntakeForm() {
                 <span>You get it made</span>
               </li>
             </ul>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-cyan-400/30 bg-white/5 p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">Lane 1</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">I have a file</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  STL, STEP, CAD or drawing — fastest route to quote.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">Lane 2</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">I only have photos</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Upload photos and measurements so we can assess CAD recreation.
+                </p>
+              </div>
+            </div>
+
+            <p className="max-w-2xl text-sm leading-6 text-slate-400">
+              Photo-based requests may need CAD recreation before manufacturing.
+            </p>
           </section>
 
           <section className="min-w-0">
@@ -316,8 +338,8 @@ export default function QuoteIntakeForm() {
                 <div className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <UploadCard
-                      title="File upload"
-                      description="STL, STEP, STP, DXF, DWG, PDF, OBJ, 3MF"
+                      title="I have a file"
+                      description="STL, STEP, CAD or drawing — fastest route to quote."
                       valueLabel={fileLabel}
                       emptyLabel="No file selected"
                       buttonLabel="Choose file"
@@ -327,8 +349,8 @@ export default function QuoteIntakeForm() {
                     />
 
                     <UploadCard
-                      title="Photo upload"
-                      description="PNG, JPG, JPEG, WEBP · multiple allowed"
+                      title="I only have photos"
+                      description="Upload photos and measurements so we can assess CAD recreation."
                       valueLabel={photoLabel}
                       emptyLabel="No photos selected"
                       buttonLabel="Choose photos"
@@ -341,6 +363,9 @@ export default function QuoteIntakeForm() {
 
                   <p className="text-sm text-slate-500">
                     Upload at least one: a file or photos of the part.
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Photo-based requests may need CAD recreation before manufacturing.
                   </p>
                 </div>
 
@@ -375,6 +400,9 @@ export default function QuoteIntakeForm() {
                         onChange={(e) => setMeasurement(e.target.value)}
                         placeholder="e.g. width = 45mm"
                       />
+                      <span className="text-xs leading-5 text-slate-500">
+                        Include at least one real-world measurement, e.g. width = 45mm.
+                      </span>
                     </label>
 
                     <label className="grid min-w-0 gap-2">
@@ -383,9 +411,27 @@ export default function QuoteIntakeForm() {
                         className="min-h-28 min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="What is this part? What does it do?"
+                        placeholder="What is this part? What does it connect to? What needs to fit exactly?"
                       />
+                      <span className="text-xs leading-5 text-slate-500">
+                        If the part must fit something exactly, mention that in the description.
+                      </span>
                     </label>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      <p>For best results, upload front, side and top views.</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {hasPhotos ? (
+                  <div className="flex flex-wrap gap-2 text-xs font-medium">
+                    <span className={`rounded-full px-3 py-1 ${measurementsReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      Measurement {measurementsReady ? "included" : "needed"}
+                    </span>
+                    <span className={`rounded-full px-3 py-1 ${descriptionReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      Description {descriptionReady ? "included" : "needed"}
+                    </span>
                   </div>
                 ) : null}
 

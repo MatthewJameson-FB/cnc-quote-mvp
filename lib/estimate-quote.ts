@@ -55,7 +55,7 @@ function inferComplexity(input: EstimateQuoteInput): Complexity {
     return "medium";
   }
 
-  if (input.stage === "needs_file" || input.stage === "needs_both") {
+  if (input.stage === "needs_file" || input.stage === "needs_cad" || input.stage === "needs_both") {
     return input.has_photos ? "medium" : "simple";
   }
 
@@ -103,7 +103,7 @@ function quantityAdjusted(range: [number, number], quantity: number): [number, n
 
 function confidence(input: EstimateQuoteInput): EstimateQuoteResult["confidence"] {
   if (input.has_file) return "high";
-  if (input.has_photos && input.measurements?.trim()) return "medium";
+  if (input.has_photos && input.measurements?.trim() && input.description?.trim()) return "medium";
   return "low";
 }
 
@@ -113,7 +113,7 @@ export function estimateQuote(input: EstimateQuoteInput): EstimateQuoteResult {
     manufacturingRange(input.manufacturing_type, resolvedComplexity),
     input.quantity ?? 1
   );
-  const needsCad = input.stage === "needs_file" || input.stage === "needs_both";
+  const needsCad = input.stage === "needs_file" || input.stage === "needs_cad" || input.stage === "needs_both";
   const cad = needsCad ? cadRange(resolvedComplexity) : undefined;
 
   const min_price = manufacturing[0] + (cad?.[0] ?? 0);
