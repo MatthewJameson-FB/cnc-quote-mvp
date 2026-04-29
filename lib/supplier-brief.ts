@@ -52,6 +52,29 @@ function lineValue(value: string | null | undefined, fallback = 'Not specified')
   return cleaned || fallback
 }
 
+function uniqueUrls(urls: Array<string | null | undefined>) {
+  const seen = new Set<string>()
+  const deduped: string[] = []
+
+  for (const url of urls) {
+    const cleaned = clean(url)
+    if (!cleaned || seen.has(cleaned)) continue
+    seen.add(cleaned)
+    deduped.push(cleaned)
+  }
+
+  return deduped
+}
+
+function formatLabeledUrls(prefix: 'File' | 'Photo', urls: string[]) {
+  return urls.map((url, index) => `- ${prefix} ${index + 1}: ${url}`)
+}
+
+function isLikelyImageUrl(url: string) {
+  const path = url.split('?')[0]?.toLowerCase() ?? ''
+  return /\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i.test(path)
+}
+
 function normalizeMissingItems(items: string[] | undefined) {
   const actionable = new Set<string>()
 
@@ -108,7 +131,15 @@ function buildCadSummary(input: SupplierBriefInput) {
 
 export function generateSupplierBrief(input: SupplierBriefInput) {
   const subject = `Quote request: ${label(input.manufacturingType)} – ${lineValue(input.material)} – ${shortDescription(input.description)}`
-  const photoLines = input.photoUrls?.length ? input.photoUrls : ['See attached']
+  const rawFileUrls = uniqueUrls([input.fileUrl])
+  const fileImageUrls = rawFileUrls.filter(isLikelyImageUrl)
+  const nonImageFileUrls = rawFileUrls.filter((url) => !isLikelyImageUrl(url))
+  const dedupedPhotoUrls = uniqueUrls([...(input.photoUrls ?? []), ...fileImageUrls]).filter(
+    (url) => !nonImageFileUrls.includes(url)
+  )
+  const fileUrls = nonImageFileUrls.filter((url) => !dedupedPhotoUrls.includes(url))
+  const visiblePhotoUrls = dedupedPhotoUrls.slice(0, 5)
+  const extraPhotoCount = Math.max(dedupedPhotoUrls.length - visiblePhotoUrls.length, 0)
   const measurements = clean(input.measurements)
   const fitFunction = clean(input.fitFunction) || clean(input.description)
   const budgetRange = clean(input.estimateRange)
@@ -137,9 +168,9 @@ export function generateSupplierBrief(input: SupplierBriefInput) {
     `Fit/function: ${fitFunction || 'Not specified'}`,
     '---',
     '--- FILES / PHOTOS ---',
-    `File: ${lineValue(input.fileUrl, 'None')}`,
-    'Photos:',
-    ...photoLines,
+    ...(fileUrls.length ? ['File:', ...formatLabeledUrls('File', fileUrls)] : ['File: None']),
+    ...(visiblePhotoUrls.length ? ['Photos:', ...formatLabeledUrls('Photo', visiblePhotoUrls)] : ['Photos: None']),
+    ...(extraPhotoCount > 0 ? [`+ ${extraPhotoCount} more photos available in admin`] : []),
     '---',
     '--- CAD / NOTES ---',
     `Photo readiness: ${photoReadiness}`,
