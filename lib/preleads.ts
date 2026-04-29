@@ -892,7 +892,7 @@ function inferManufacturingType(intent: PreleadIntent, detectedMaterials: string
 
 function validateLeadIntake(lead: Pick<Prelead, "has_file" | "has_photos" | "measurements">) {
   if (!lead.has_file && !lead.has_photos) {
-    return { isValid: false, lowQuality: true, reason: "low_quality:no_file_or_photo" };
+    return { isValid: true, lowQuality: false, reason: null };
   }
 
   if (lead.has_photos && !(lead.measurements && lead.measurements.trim())) {
@@ -931,6 +931,7 @@ function enrichLeadIntake(prelead: Omit<Prelead, "suggested_reply">, intent: Pre
   const manufacturingType = prelead.manufacturing_type ?? inferManufacturingType(intent, prelead.detected_materials, combined);
   const validation = validateLeadIntake({ has_file: hasFile, has_photos: hasPhotos, measurements });
   const routingDecision = routeLead({ stage, manufacturing_type: manufacturingType });
+  const evidencePenalty = !hasFile && !hasPhotos ? 3 : 0;
 
   return {
     ...prelead,
@@ -944,6 +945,7 @@ function enrichLeadIntake(prelead: Omit<Prelead, "suggested_reply">, intent: Pre
     description: prelead.description ?? prelead.title,
     routing_decision: routingDecision,
     part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
+    lead_score: prelead.lead_score - evidencePenalty,
     intake_validation_reason: validation.reason,
   } satisfies Omit<Prelead, "suggested_reply">;
 }
@@ -1567,6 +1569,7 @@ function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   if (hasAnyPattern(getCandidateText(lead), buyerProblemBoostPatterns)) score += 8;
   if (hasAnyPattern(getCandidateText(lead), realWorldObjectBoostPatterns)) score += 6;
   if (hasAnyPattern(getCandidateText(lead), urgencyFrustrationBoostPatterns)) score += 5;
+  if (!lead.has_file && !lead.has_photos) score -= 3;
   if (lead.location_signal === "outside_uk") score -= 6;
 
   return score;
@@ -1581,15 +1584,32 @@ function getFinalAiRejectionReason(
   if (!classification.is_lead) return "hard_reject";
   if (classification.confidence < 0.6) return "ai_confidence_too_low";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
-  if (intent.intent_type !== "buyer_problem") return "missing_problem_signal";
-  if (!hasQualificationSignal(intent)) {
+
+  const hasHeuristicProblemSignal = intent.intent_type === "buyer_problem" && hasQualificationSignal(intent);
+  const hasAiProblemSignal = classification.problem_type !== "unknown" || classification.manufacturing_type !== "unknown";
+  const hasRequestShape = hasStrongBuyerRequestShape(lead, intent);
+
+  if (!hasHeuristicProblemSignal && !hasAiProblemSignal && !hasRequestShape) {
     return "missing_problem_signal";
   }
+
   return null;
 }
 
 function incrementReasonCount<T extends string>(counts: Map<T, number>, reason: T) {
   counts.set(reason, (counts.get(reason) ?? 0) + 1);
+}
+
+function pushToBucket<T extends string>(
+  buckets: Partial<Record<T, Prelead[]>>,
+  key: T,
+  lead: Prelead
+) {
+  if (!buckets[key]) {
+    buckets[key] = [];
+  }
+
+  buckets[key]!.push(lead);
 }
 
 function topReasonCounts<T extends string>(counts: Map<T, number>, limit = 5) {
@@ -1949,6 +1969,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     tutorial_course: [],
     machine_purchase: [],
     business_advice: [],
+    curiosity_practice: [],
   };
   const preAiRejectedReasonCounts = new Map<string, number>();
   const aiRejectedReasonCounts = new Map<string, number>();
@@ -1970,25 +1991,31 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   let finalRejectedAfterAiCount = 0;
 
   for (const { lead, intent } of orderedScoredCandidates) {
-    const preAiHardRejectReason = useAiPipeline ? getPreAiHardRejectReason(lead, intent) : null;
+    try {
+      const preAiHardRejectReason = useAiPipeline ? getPreAiHardRejectReason(lead, intent) : null;
 
-    if (debugEnabled) {
-      const rawCandidate = rawCandidateByUrl.get(lead.source_url);
-      logger.debug(
-        `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
-      );
-      if (lead.routing_decision === 'cad_required') {
-        logger.debug('CAD_REQUIRED');
+      if (debugEnabled) {
+        const rawCandidate = rawCandidateByUrl.get(lead.source_url);
+        logger.debug(
+          `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
+        );
+        if (lead.routing_decision === 'cad_required') {
+          logger.debug('CAD_REQUIRED');
+        }
       }
-    }
 
-    if (preAiHardRejectReason) {
-      preAiRejectionBuckets[preAiHardRejectReason].push(lead);
-      incrementReasonCount(preAiRejectedReasonCounts, preAiHardRejectReason);
+      if (preAiHardRejectReason) {
+        pushToBucket(preAiRejectionBuckets, preAiHardRejectReason, lead);
+        incrementReasonCount(preAiRejectedReasonCounts, preAiHardRejectReason);
+        continue;
+      }
+
+      preAiCandidates.push({ lead, intent });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to process candidate during pre-AI rejection pass: ${lead.source_url} - ${message}`);
       continue;
     }
-
-    preAiCandidates.push({ lead, intent });
   }
 
   if (useAiPipeline) {
@@ -2188,7 +2215,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     }
   } else if (!aiConfig.enabled) {
     const heuristicRejectionBuckets: Record<
-      "supplier_ad" | "business_advice" | "machine_purchase" | "no_machining_signal" | "no_part_signal" | "no_need_signal" | "outside_uk" | "banned_keyword",
+      "supplier_ad" | "business_advice" | "machine_purchase" | "no_machining_signal" | "no_part_signal" | "no_need_signal" | "outside_uk" | "banned_keyword" | "curiosity_practice",
       Prelead[]
     > = {
       supplier_ad: [],
@@ -2199,24 +2226,29 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       no_need_signal: [],
       outside_uk: [],
       banned_keyword: [],
+      curiosity_practice: [],
     };
 
     for (const { lead, intent } of preAiCandidates) {
-      const rejectionReason = getCandidateRejectionReason(lead, intent, includeOutsideUk);
+      try {
+        const rejectionReason = getCandidateRejectionReason(lead, intent, includeOutsideUk);
 
-      if (rejectionReason) {
-        if (rejectionReason in heuristicRejectionBuckets) {
-          heuristicRejectionBuckets[rejectionReason as keyof typeof heuristicRejectionBuckets].push(lead);
+        if (rejectionReason) {
+          pushToBucket(heuristicRejectionBuckets, rejectionReason as keyof typeof heuristicRejectionBuckets, lead);
+          continue;
         }
+
+        if (!qualifiesPrelead(lead, intent, includeOutsideUk, minScore)) {
+          pushToBucket(heuristicRejectionBuckets, "no_need_signal", lead);
+          continue;
+        }
+
+        leads.push(lead);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to process heuristic rejection candidate: ${lead.source_url} - ${message}`);
         continue;
       }
-
-      if (!qualifiesPrelead(lead, intent, includeOutsideUk, minScore)) {
-        heuristicRejectionBuckets.no_need_signal.push(lead);
-        continue;
-      }
-
-      leads.push(lead);
     }
 
     leads.sort((a, b) => b.lead_score - a.lead_score || a.created_at.localeCompare(b.created_at));

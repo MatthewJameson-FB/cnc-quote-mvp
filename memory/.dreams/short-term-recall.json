@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-29T12:56:43.935Z",
+  "updatedAt": "2026-04-29T17:43:12.670Z",
   "entries": {
     "memory:memory/2026-04-25.md:1:4": {
       "key": "memory:memory/2026-04-25.md:1:4",
@@ -133,6 +133,68 @@
         "make-this",
         "replacement-part",
         "stl-cad"
+      ]
+    },
+    "memory:memory/2026-04-29.md:101:104": {
+      "key": "memory:memory/2026-04-29.md:101:104",
+      "path": "memory/2026-04-29.md",
+      "startLine": 101,
+      "endLine": 104,
+      "source": "memory",
+      "snippet": "- Prelead heuristic hardening: `curiosity_practice` was added as a real pre-AI rejection reason and must be present in rejection bucket/reporting maps; defensive bucket creation is now required anywhere rejection groups are pushed to. - Prelead monitor stability rule: one rejected or malformed candidate must not crash the whole run; per-candidate rejection handling in `lib/preleads.ts` should stay wrapped defensively so final metrics still print. - Latest validated prelead monitor state after the crash fix: `npm run lint` passed and `PRELEAD_DEBUG=true npm run find:preleads` completed to final metrics without crashing when candidates were rejected for `curiosity_practice`.",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.3922132074832916,
+      "maxScore": 0.3922132074832916,
+      "firstRecalledAt": "2026-04-29T17:43:12.670Z",
+      "lastRecalledAt": "2026-04-29T17:43:12.670Z",
+      "queryHashes": [
+        "d1342382ea8e"
+      ],
+      "recallDays": [
+        "2026-04-29"
+      ],
+      "conceptTags": [
+        "curiosity-practice",
+        "pre-ai",
+        "bucket/reporting",
+        "per-candidate",
+        "lib/preleads.ts",
+        "prelead-debug",
+        "prelead",
+        "heuristic"
+      ]
+    },
+    "memory:memory/2026-04-29.md:71:82": {
+      "key": "memory:memory/2026-04-29.md:71:82",
+      "path": "memory/2026-04-29.md",
+      "startLine": 71,
+      "endLine": 82,
+      "source": "memory",
+      "snippet": "- Photo assessment rules to preserve: no measurements => `needs_scale_reference`; single photo => `needs_more_angles`; fit-critical terms like clip/thread/gear/tight fit/mating surface can force `needs_physical_part` or low confidence; always ask for a ruler/coin/reference object when scale is unclear. - Latest validated state: shared-inbox reply handling and photo-assessment changes both passed `npm run lint` and `npm run build`. # 2026-04-29 - User prefers very low-token progress updates in the form: done / next / blocker / need-from-you. - Heartbeat handling in this workspace is special-case: when explicitly instructed for heartbeat polls, reply exactly `HEARTBEAT_OK` only. - Project foc",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.3509687721729278,
+      "maxScore": 0.3509687721729278,
+      "firstRecalledAt": "2026-04-29T17:43:12.670Z",
+      "lastRecalledAt": "2026-04-29T17:43:12.670Z",
+      "queryHashes": [
+        "d1342382ea8e"
+      ],
+      "recallDays": [
+        "2026-04-29"
+      ],
+      "conceptTags": [
+        "needs-scale-reference",
+        "needs-more-angles",
+        "fit-critical",
+        "clip/thread/gear/tight",
+        "fit/mating",
+        "needs-physical-part",
+        "ruler/coin/reference",
+        "shared-inbox"
       ]
     }
   }
