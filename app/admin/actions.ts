@@ -8,6 +8,39 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 const allowedStatuses = new Set<QuoteStatus>(
   quoteStatusOptions.map((option) => option.value)
 );
+type CommercialQuoteStatus =
+  | "submitted"
+  | "estimate_accepted"
+  | "sent_to_supplier"
+  | "supplier_accepted"
+  | "customer_accepted"
+  | "invoice_sent"
+  | "paid"
+  | "completed"
+  | "lost";
+
+const allowedCommercialQuoteStatuses = new Set<CommercialQuoteStatus>([
+  "submitted",
+  "estimate_accepted",
+  "sent_to_supplier",
+  "supplier_accepted",
+  "customer_accepted",
+  "invoice_sent",
+  "paid",
+  "completed",
+  "lost",
+]);
+
+type SupplierFeeStatus = "not_due" | "due" | "invoiced" | "paid" | "waived";
+
+const allowedSupplierFeeStatuses = new Set<SupplierFeeStatus>([
+  "not_due",
+  "due",
+  "invoiced",
+  "paid",
+  "waived",
+]);
+
 type InvoiceStatus = "unbilled" | "invoiced" | "paid";
 const allowedInvoiceStatuses = new Set<InvoiceStatus>(["unbilled", "invoiced", "paid"]);
 
@@ -28,6 +61,57 @@ function parseOptionalNumber(value: FormDataEntryValue | null) {
   }
 
   return parsed;
+}
+
+function cleanString(value: FormDataEntryValue | null) {
+  return String(value ?? "").trim();
+}
+
+function appendTrackingNote(existingNotes: string | null, title: string, entries: Array<string | null>) {
+  return [existingNotes?.trim() || null, `--- ${title} ---`, ...entries]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function isMissingColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "");
+
+  return /column .* does not exist|could not find the .* column|schema cache/i.test(message);
+}
+
+async function updateQuoteWithCommercialFallback(
+  quoteId: string,
+  update: Record<string, unknown>,
+  noteTitle: string,
+  noteEntries: Array<string | null>
+) {
+  const supabase = createSupabaseAdminClient();
+  const { data: quote, error: quoteError } = await supabase
+    .from("quotes")
+    .select("notes")
+    .eq("id", quoteId)
+    .single();
+
+  if (quoteError) {
+    throw new Error(quoteError.message);
+  }
+
+  const notes = appendTrackingNote((quote.notes as string | null) ?? null, noteTitle, noteEntries);
+  let { error } = await supabase.from("quotes").update({ ...update, notes }).eq("id", quoteId);
+
+  if (error && isMissingColumnError(error)) {
+    const fallback = await supabase.from("quotes").update({ notes }).eq("id", quoteId);
+    error = fallback.error;
+  }
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function updateQuoteStatus(formData: FormData) {
@@ -116,6 +200,98 @@ export async function updateInvoiceStatus(formData: FormData) {
   if (error) {
     throw new Error(error.message);
   }
+
+  revalidatePath("/internal-admin");
+}
+
+export async function updateCommercialQuoteStatus(formData: FormData) {
+  const quoteId = cleanString(formData.get("quoteId"));
+  const quoteStatus = cleanString(formData.get("quoteStatus")) as CommercialQuoteStatus;
+
+  if (!quoteId) {
+    throw new Error("Missing quote id.");
+  }
+
+  if (!allowedCommercialQuoteStatuses.has(quoteStatus)) {
+    throw new Error("Invalid commercial quote status.");
+  }
+
+  const update: Record<string, unknown> = {
+    quote_status: quoteStatus,
+  };
+
+  if (quoteStatus === "invoice_sent") {
+    update.invoice_status = "invoiced";
+    update.invoiced_at = nowIso();
+  }
+
+  if (quoteStatus === "paid") {
+    update.invoice_status = "paid";
+    update.invoiced_at = nowIso();
+    update.paid_at = nowIso();
+  }
+
+  if (quoteStatus === "lost") {
+    update.status = "lost";
+    update.lost_at = nowIso();
+  }
+
+  if (quoteStatus === "supplier_accepted") {
+    update.supplier_fee_status = "due";
+  }
+
+  await updateQuoteWithCommercialFallback(quoteId, update, "commercial status", [
+    `quote_status: ${quoteStatus}`,
+    quoteStatus === "supplier_accepted" ? "supplier_fee_status: due" : null,
+    quoteStatus === "invoice_sent" ? "invoice_status: invoiced" : null,
+    quoteStatus === "paid" ? "invoice_status: paid" : null,
+    quoteStatus === "paid" ? `paid_at: ${nowIso()}` : null,
+  ]);
+
+  revalidatePath("/internal-admin");
+}
+
+export async function saveCommercialQuoteFields(formData: FormData) {
+  const quoteId = cleanString(formData.get("quoteId"));
+  const supplierId = cleanString(formData.get("supplierId")) || null;
+  const supplierFeeStatusRaw = cleanString(formData.get("supplierFeeStatus"));
+  const supplierFeeStatus = supplierFeeStatusRaw
+    ? (supplierFeeStatusRaw as SupplierFeeStatus)
+    : null;
+  const supplierFeeAmount = parseOptionalNumber(formData.get("supplierFeeAmount"));
+  const finalQuoteAmount = parseOptionalNumber(formData.get("finalQuoteAmount"));
+  const invoiceReference = cleanString(formData.get("invoiceReference")) || null;
+
+  if (!quoteId) {
+    throw new Error("Missing quote id.");
+  }
+
+  if (supplierFeeStatus && !allowedSupplierFeeStatuses.has(supplierFeeStatus)) {
+    throw new Error("Invalid supplier fee status.");
+  }
+
+  const update: Record<string, unknown> = {
+    supplier_id: supplierId,
+    supplier_fee_amount: supplierFeeAmount,
+    final_quote_amount: finalQuoteAmount,
+    invoice_reference: invoiceReference,
+  };
+
+  if (supplierFeeStatus) {
+    update.supplier_fee_status = supplierFeeStatus;
+  }
+
+  if (finalQuoteAmount != null) {
+    update.job_value = finalQuoteAmount;
+  }
+
+  await updateQuoteWithCommercialFallback(quoteId, update, "commercial fields", [
+    supplierId ? `supplier_id: ${supplierId}` : null,
+    supplierFeeStatus ? `supplier_fee_status: ${supplierFeeStatus}` : null,
+    supplierFeeAmount != null ? `supplier_fee_amount: ${supplierFeeAmount}` : null,
+    finalQuoteAmount != null ? `final_quote_amount: ${finalQuoteAmount}` : null,
+    invoiceReference ? `invoice_reference: ${invoiceReference}` : null,
+  ]);
 
   revalidatePath("/internal-admin");
 }

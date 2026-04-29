@@ -93,13 +93,28 @@ function estimateSummaryText(estimate: ReturnType<typeof estimateQuote>) {
 
   return [
     `rough_estimate: £${estimate.min_price}–£${estimate.max_price} ${estimate.currency}`,
+    `customer_estimate_min: ${estimate.min_price}`,
+    `customer_estimate_max: ${estimate.max_price}`,
     `estimate_confidence: ${estimate.confidence}`,
+    `quote_status: submitted`,
+    `supplier_fee_status: not_due`,
     cad,
     manufacturing,
     `estimate_disclaimer: ${estimate.disclaimer}`,
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function isMissingColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "");
+
+  return /column .* does not exist|could not find the .* column|schema cache/i.test(message);
 }
 
 function buildIntakeNotes({
@@ -312,6 +327,23 @@ export async function POST(req: Request) {
 
     const quoteId = String(insertedQuote?.id ?? "");
     const estimateRange = `£${estimate.min_price}–£${estimate.max_price} ${estimate.currency}`;
+
+    if (quoteId) {
+      const { error: commercialTrackingError } = await supabase
+        .from("quotes")
+        .update({
+          quote_status: "submitted",
+          supplier_fee_status: "not_due",
+          customer_estimate_min: estimate.min_price,
+          customer_estimate_max: estimate.max_price,
+        })
+        .eq("id", quoteId);
+
+      if (commercialTrackingError && !isMissingColumnError(commercialTrackingError)) {
+        console.warn("COMMERCIAL TRACKING UPDATE ERROR:", commercialTrackingError);
+      }
+    }
+
     const baseUrl = getAppBaseUrl();
     const yesUrl = quoteId
       ? `${baseUrl}/api/confirm-estimate?id=${encodeURIComponent(quoteId)}&decision=yes`

@@ -86,12 +86,25 @@ function appendDecisionNote(existingNotes: string | null, decision: "yes" | "no"
     "--- estimate confirmation ---",
     `decision: ${decision}`,
     `estimate_accepted: ${decision === "yes" ? "true" : "false"}`,
+    decision === "yes" ? "quote_status: estimate_accepted" : null,
     `timestamp: ${new Date().toISOString()}`,
     decision === "yes" && preleadId ? "prelead_converted: true" : null,
+    decision === "yes" && preleadId ? "conversion_status: ready_for_supplier" : null,
     decision === "yes" ? "internal_status: ready_for_supplier" : "internal_status: estimate_declined",
   ].filter(Boolean);
 
   return lines.join("\n");
+}
+
+function isMissingColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "");
+
+  return /column .* does not exist|could not find the .* column|schema cache/i.test(message);
 }
 
 export async function GET(request: Request) {
@@ -141,10 +154,21 @@ export async function GET(request: Request) {
     const estimateRange = extractNoteValue(existingNotes, "rough_estimate");
     const updatedNotes = appendDecisionNote(existingNotes, decision, preleadId);
 
-    const { error: updateError } = await supabase
+    const commercialUpdatePayload: Record<string, unknown> = { notes: updatedNotes };
+
+    if (decision === "yes") {
+      commercialUpdatePayload.quote_status = "estimate_accepted";
+    }
+
+    let { error: updateError } = await supabase
       .from("quotes")
-      .update({ notes: updatedNotes })
+      .update(commercialUpdatePayload)
       .eq("id", id);
+
+    if (updateError && isMissingColumnError(updateError)) {
+      const fallbackResult = await supabase.from("quotes").update({ notes: updatedNotes }).eq("id", id);
+      updateError = fallbackResult.error;
+    }
 
     if (updateError) {
       console.error("CONFIRM ESTIMATE UPDATE ERROR:", updateError);
