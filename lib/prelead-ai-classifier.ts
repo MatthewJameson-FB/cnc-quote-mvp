@@ -208,7 +208,7 @@ export async function classifyPreleadCandidatesWithAI(
   }
 
   if (!config.apiKey) {
-    logger.warn("AI prelead classifier enabled but OPENAI_API_KEY is missing; falling back to existing classifier.");
+    logger.warn("AI prelead classifier enabled but OPENAI_API_KEY is missing; skipping AI classification.");
     return null;
   }
 
@@ -235,8 +235,18 @@ export async function classifyPreleadCandidatesWithAI(
         continue;
       }
 
-      logger.warn(`AI prelead classifier request failed: ${error instanceof Error ? error.message : String(error)}. Falling back to existing classifier.`);
-      return null;
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`AI prelead classifier request failed for ${candidate.source_url}: ${message}`);
+      results.push({
+        candidate,
+        classification: {
+          is_lead: false,
+          confidence: 0,
+          reason: `AI request failed: ${message}`,
+          problem_type: "unknown",
+          suggested_reply: candidate.suggested_reply,
+        },
+      });
     }
   }
 

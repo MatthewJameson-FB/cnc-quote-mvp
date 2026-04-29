@@ -5,6 +5,7 @@ import { sendPreleadSummaryEmail } from "@/lib/notifications";
 import { buildEnabledPreleadAdapters } from "@/lib/prelead-adapters";
 import type { RawPreleadCandidate } from "@/lib/prelead-adapters/types";
 import {
+  type AiPreleadClassification,
   classifyPreleadCandidatesWithAI,
   getAiPreleadClassifierConfig,
 } from "@/lib/prelead-ai-classifier";
@@ -250,6 +251,15 @@ type PreleadIntentType =
   | "general_discussion"
   | "unknown";
 
+type PreAiHardRejectReason =
+  | "supplier_ad"
+  | "job"
+  | "politics_news"
+  | "mattress_furniture"
+  | "outside_uk"
+  | "machine_purchase"
+  | "business_advice";
+
 type PreleadIntent = {
   intent_type: PreleadIntentType;
   machining_signals: string[];
@@ -400,6 +410,10 @@ const bannedKeywordEntries: SignalEntry[] = [
   { label: "hiring", pattern: /\bhiring\b/i, weight: 1 },
   { label: "salary", pattern: /\bsalary\b/i, weight: 1 },
   { label: "career", pattern: /\bcareer\b/i, weight: 1 },
+  { label: "politics", pattern: /\bpolitics?\b/i, weight: 1 },
+  { label: "news", pattern: /\bnews\b/i, weight: 1 },
+  { label: "election", pattern: /\belection(?:s)?\b/i, weight: 1 },
+  { label: "government", pattern: /\bgovernment\b/i, weight: 1 },
   { label: "course", pattern: /\bcourse\b/i, weight: 1 },
   { label: "tutorial", pattern: /\btutorial\b/i, weight: 1 },
   { label: "training", pattern: /\btraining\b/i, weight: 1 },
@@ -1063,6 +1077,43 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   return null;
 }
 
+function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
+  const text = getCandidateText(lead);
+  const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
+
+  if (lead.location_signal === "outside_uk") return "outside_uk";
+  if (intent.intent_type === "supplier_ad") return "supplier_ad";
+  if (intent.intent_type === "business_advice") return "business_advice";
+  if (intent.intent_type === "machine_purchase") return "machine_purchase";
+
+  if (bannedSignals.some((signal) => ["job", "hiring", "salary", "career"].includes(signal))) return "job";
+  if (bannedSignals.some((signal) => ["politics", "news", "election", "government"].includes(signal))) return "politics_news";
+  if (
+    bannedSignals.some((signal) =>
+      ["mattress", "sofa", "bed", "furniture", "clothes", "clothing", "fashion", "upholstery", "home decor", "t-shirt", "print on demand"].includes(signal)
+    )
+  ) {
+    return "mattress_furniture";
+  }
+
+  return null;
+}
+
+function isFinalAiApprovedLead(lead: Pick<Prelead, "location_signal">, classification: AiPreleadClassification, minConfidence: number) {
+  return classification.is_lead && classification.confidence >= minConfidence && (lead.location_signal === "uk" || lead.location_signal === "unknown");
+}
+
+function incrementReasonCount(counts: Map<string, number>, reason: string) {
+  counts.set(reason, (counts.get(reason) ?? 0) + 1);
+}
+
+function topReasonCounts(counts: Map<string, number>, limit = 5) {
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([reason, count]) => ({ reason, count }));
+}
+
 function qualifiesPrelead(lead: Prelead, intent: PreleadIntent, includeOutsideUk: boolean, minScore: number) {
   return (
     getCandidateRejectionReason(lead, intent, includeOutsideUk) === null &&
@@ -1328,6 +1379,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     logger.info(`AI max candidates: ${aiConfig.maxCandidates}`);
     logger.info(`AI min confidence: ${aiConfig.minConfidence}`);
   }
+  const useAiPipeline = aiConfig.enabled && Boolean(aiConfig.apiKey);
   const adapters = buildEnabledPreleadAdapters(logger);
   if (adapters.length === 0) {
     throw new Error("No prelead adapters enabled");
@@ -1370,64 +1422,64 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   const rawCandidateByUrl = new Map(rawCandidates.map((candidate) => [candidate.source_url, candidate]));
   const scoredLeads = scoredCandidates.map(({ lead }) => lead);
   const topScored = [...scoredLeads].sort((a, b) => b.lead_score - a.lead_score || a.created_at.localeCompare(b.created_at));
-  const rejectionBuckets: Record<
-    "supplier_ad" | "business_advice" | "machine_purchase" | "no_machining_signal" | "no_part_signal" | "no_need_signal" | "outside_uk" | "banned_keyword",
-    Prelead[]
-  > = {
+  const orderedScoredCandidates = [...scoredCandidates].sort(
+    (a, b) => b.lead.lead_score - a.lead.lead_score || a.lead.created_at.localeCompare(b.lead.created_at)
+  );
+  const preAiRejectionBuckets: Record<PreAiHardRejectReason, Prelead[]> = {
     supplier_ad: [],
-    business_advice: [],
-    machine_purchase: [],
-    no_machining_signal: [],
-    no_part_signal: [],
-    no_need_signal: [],
+    job: [],
+    politics_news: [],
+    mattress_furniture: [],
     outside_uk: [],
-    banned_keyword: [],
+    machine_purchase: [],
+    business_advice: [],
   };
-  const leads: Prelead[] = [];
-  let aiCandidateUrls = new Set<string>();
+  const preAiRejectedReasonCounts = new Map<string, number>();
+  const aiRejectedReasonCounts = new Map<string, number>();
   const aiDecisionByUrl = new Map<string, {
     ai_is_lead: boolean | null;
     ai_confidence: number | null;
     ai_reason: string | null;
     rejection_reason: string | null;
   }>();
+  const preAiCandidates: Array<{ lead: Prelead; intent: PreleadIntent }> = [];
+  const leads: Prelead[] = [];
+  let aiCandidateUrls = new Set<string>();
+  let aiCandidatesSent = 0;
+  let aiAcceptedCount = 0;
+  let aiRejectedCount = 0;
 
-  for (const { lead, intent } of scoredCandidates) {
-    const rejectionReason = getCandidateRejectionReason(lead, intent, includeOutsideUk);
+  for (const { lead, intent } of orderedScoredCandidates) {
+    const preAiHardRejectReason = useAiPipeline ? getPreAiHardRejectReason(lead, intent) : null;
 
-    logger.debug(
-      `title=${lead.title} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} machining_signals=${intent.machining_signals.join("; ") || "none"} physical_part_signals=${intent.physical_part_signals.join("; ") || "none"} need_signals=${intent.need_signals.join("; ") || "none"} negative_signals=${intent.negative_signals.join("; ") || "none"} rejection_reason=${rejectionReason ?? "qualified"}`
-    );
+    if (debugEnabled) {
+      logger.debug(
+        `title=${lead.title} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} machining_signals=${intent.machining_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
+      );
+    }
 
-    if (rejectionReason) {
-      if (rejectionReason in rejectionBuckets) {
-        rejectionBuckets[rejectionReason as keyof typeof rejectionBuckets].push(lead);
-      }
+    if (preAiHardRejectReason) {
+      preAiRejectionBuckets[preAiHardRejectReason].push(lead);
+      incrementReasonCount(preAiRejectedReasonCounts, preAiHardRejectReason);
       continue;
     }
 
-    if (!qualifiesPrelead(lead, intent, includeOutsideUk, minScore)) {
-      rejectionBuckets.no_need_signal.push(lead);
-      continue;
-    }
-    leads.push(lead);
+    preAiCandidates.push({ lead, intent });
   }
 
-  leads.sort((a, b) => b.lead_score - a.lead_score || a.created_at.localeCompare(b.created_at));
-  const basicQualifiedLeads = [...leads];
-
-  if (aiConfig.enabled) {
-    const aiCandidates = basicQualifiedLeads.slice(0, aiConfig.maxCandidates).map((lead) => ({
-      source_url: lead.source_url,
-      title: lead.title,
-      snippet: lead.snippet,
-      detected_keywords: lead.detected_keywords,
-      detected_materials: lead.detected_materials,
-      location_signal: lead.location_signal,
-      lead_score: lead.lead_score,
-      suggested_reply: lead.suggested_reply,
+  if (useAiPipeline) {
+    const aiCandidates = preAiCandidates.slice(0, aiConfig.maxCandidates).map((entry) => ({
+      source_url: entry.lead.source_url,
+      title: entry.lead.title,
+      snippet: entry.lead.snippet,
+      detected_keywords: entry.lead.detected_keywords,
+      detected_materials: entry.lead.detected_materials,
+      location_signal: entry.lead.location_signal,
+      lead_score: entry.lead.lead_score,
+      suggested_reply: entry.lead.suggested_reply,
     }));
     aiCandidateUrls = new Set(aiCandidates.map((candidate) => candidate.source_url));
+    aiCandidatesSent = aiCandidates.length;
 
     if (debugEnabled) {
       logger.info(`estimated classifier calls: ${aiCandidates.length}`);
@@ -1437,50 +1489,61 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     const aiResults = await classifyPreleadCandidatesWithAI(aiCandidates, logger);
 
     if (aiResults) {
-      const accepted = aiResults.filter(
-        ({ classification }) => classification.is_lead && classification.confidence >= aiConfig.minConfidence
-      );
-      const rejected = aiResults.filter(
-        ({ classification }) => !classification.is_lead || classification.confidence < aiConfig.minConfidence
-      );
-
-      const acceptedByUrl = new Map(
-        accepted.map(({ candidate, classification }) => [
-          candidate.source_url,
-          classification,
-        ])
-      );
+      const accepted = [] as typeof aiResults;
+      const rejected = [] as typeof aiResults;
 
       for (const { candidate, classification } of aiResults) {
+        const approved = isFinalAiApprovedLead(candidate, classification, aiConfig.minConfidence);
+        const rejectionReason = approved
+          ? null
+          : !classification.is_lead
+            ? classification.reason || 'ai_rejected'
+            : classification.confidence < aiConfig.minConfidence
+              ? 'below_min_confidence'
+              : candidate.location_signal === 'outside_uk'
+                ? 'outside_uk'
+                : 'ai_rejected';
+
         aiDecisionByUrl.set(candidate.source_url, {
           ai_is_lead: classification.is_lead,
           ai_confidence: classification.confidence,
           ai_reason: classification.reason,
-          rejection_reason: classification.is_lead && classification.confidence >= aiConfig.minConfidence
-            ? null
-            : classification.is_lead
-              ? "ai_below_confidence"
-              : "ai_rejected",
+          rejection_reason: rejectionReason,
         });
+
+        if (approved) {
+          accepted.push({ candidate, classification });
+          continue;
+        }
+
+        rejected.push({ candidate, classification });
+        incrementReasonCount(aiRejectedReasonCounts, rejectionReason ?? 'ai_rejected');
       }
 
-      const filteredLeads = basicQualifiedLeads
-        .filter((lead) => acceptedByUrl.has(lead.source_url))
-        .map((lead) => {
-          const aiClassification = acceptedByUrl.get(lead.source_url);
-          return aiClassification?.suggested_reply
-            ? { ...lead, suggested_reply: aiClassification.suggested_reply }
-            : lead;
-        });
+      aiAcceptedCount = accepted.length;
+      aiRejectedCount = rejected.length;
 
-      leads.length = 0;
-      leads.push(...filteredLeads);
+      const acceptedByUrl = new Map(
+        accepted.map(({ candidate, classification }) => [candidate.source_url, classification])
+      );
+
+      leads.push(
+        ...preAiCandidates
+          .map(({ lead }) => lead)
+          .filter((lead) => acceptedByUrl.has(lead.source_url))
+          .map((lead) => {
+            const aiClassification = acceptedByUrl.get(lead.source_url);
+            return aiClassification?.suggested_reply
+              ? { ...lead, suggested_reply: aiClassification.suggested_reply }
+              : lead;
+          })
+      );
 
       if (debugEnabled) {
         logger.info(`AI accepted count: ${accepted.length}`);
         logger.info(`AI rejected count: ${rejected.length}`);
         logger.debug(
-          "top accepted candidates:",
+          'top accepted candidates:',
           accepted.slice(0, 5).map(({ candidate, classification }) => ({
             title: candidate.title,
             confidence: classification.confidence,
@@ -1489,7 +1552,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           }))
         );
         logger.debug(
-          "top rejected candidates:",
+          'top rejected candidates:',
           rejected.slice(0, 5).map(({ candidate, classification }) => ({
             title: candidate.title,
             confidence: classification.confidence,
@@ -1498,16 +1561,58 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         );
       }
     } else {
+      aiRejectedCount = aiCandidates.length;
       for (const candidate of aiCandidates) {
         aiDecisionByUrl.set(candidate.source_url, {
           ai_is_lead: null,
           ai_confidence: null,
-          ai_reason: "AI unavailable; fell back to heuristic classifier.",
-          rejection_reason: null,
+          ai_reason: 'AI unavailable; no final AI decision was recorded.',
+          rejection_reason: 'ai_unavailable',
         });
       }
     }
+  } else if (!aiConfig.enabled) {
+    const heuristicRejectionBuckets: Record<
+      "supplier_ad" | "business_advice" | "machine_purchase" | "no_machining_signal" | "no_part_signal" | "no_need_signal" | "outside_uk" | "banned_keyword",
+      Prelead[]
+    > = {
+      supplier_ad: [],
+      business_advice: [],
+      machine_purchase: [],
+      no_machining_signal: [],
+      no_part_signal: [],
+      no_need_signal: [],
+      outside_uk: [],
+      banned_keyword: [],
+    };
+
+    for (const { lead, intent } of preAiCandidates) {
+      const rejectionReason = getCandidateRejectionReason(lead, intent, includeOutsideUk);
+
+      if (rejectionReason) {
+        if (rejectionReason in heuristicRejectionBuckets) {
+          heuristicRejectionBuckets[rejectionReason as keyof typeof heuristicRejectionBuckets].push(lead);
+        }
+        continue;
+      }
+
+      if (!qualifiesPrelead(lead, intent, includeOutsideUk, minScore)) {
+        heuristicRejectionBuckets.no_need_signal.push(lead);
+        continue;
+      }
+
+      leads.push(lead);
+    }
+
+    leads.sort((a, b) => b.lead_score - a.lead_score || a.created_at.localeCompare(b.created_at));
+  } else {
+    logger.warn("AI classifier is enabled but OPENAI_API_KEY is missing; skipping AI classification.");
   }
+
+  logger.info(`AI classifier enabled: ${aiConfig.enabled ? 'yes' : 'no'}`);
+  logger.info(`candidates sent to AI: ${aiCandidatesSent}`);
+  logger.info(`AI accepted: ${aiAcceptedCount}`);
+  logger.info(`AI rejected: ${aiRejectedCount}`);
 
   logger.info(`total candidates: ${rawCandidates.length}`);
   logger.info(`scored: ${scoredLeads.length}`);
@@ -1519,34 +1624,14 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       "top 5 candidate titles + scores:",
       topScored.slice(0, 5).map((lead) => ({ title: lead.title, score: lead.lead_score, source_url: lead.source_url }))
     );
+    logger.debug("top 5 pre-AI rejection reasons:", topReasonCounts(preAiRejectedReasonCounts));
+    logger.debug("top 5 AI rejected reasons:", topReasonCounts(aiRejectedReasonCounts));
   }
 
-  if (debugEnabled) {
-    for (const [reason, bucket] of Object.entries(rejectionBuckets) as Array<[
-      keyof typeof rejectionBuckets,
-      Prelead[]
-    ]>) {
-      if (bucket.length === 0) {
-        continue;
-      }
-
-      const topRejected = bucket.sort((a, b) => b.lead_score - a.lead_score).slice(0, 8);
-      logger.debug(
-        `Top rejected ${reason} leads:`,
-        topRejected.map((lead) => ({
-          score: lead.lead_score,
-          location_signal: lead.location_signal,
-          title: lead.title,
-          url: lead.source_url,
-          keywords: lead.detected_keywords,
-        }))
-      );
-    }
-  }
-
-  if (aiConfig.enabled && aiCandidateUrls.size > 0) {
+  if (useAiPipeline && aiCandidateUrls.size > 0) {
     const finalLeadUrls = new Set(leads.map((lead) => lead.source_url));
-    const learningRows = basicQualifiedLeads
+    const learningRows = preAiCandidates
+      .map(({ lead }) => lead)
       .filter((lead) => aiCandidateUrls.has(lead.source_url))
       .map((lead) => {
         const rawCandidate = rawCandidateByUrl.get(lead.source_url);
