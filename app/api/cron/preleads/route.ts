@@ -7,11 +7,22 @@ function unauthorized() {
   return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 }
 
-export async function GET(req: Request) {
-  const authHeader = req.headers.get("authorization") ?? "";
-  const expected = process.env.CRON_SECRET?.trim();
+function extractSecret(req: Request) {
+  const authorization = req.headers.get("authorization") ?? "";
+  const cronSecret = req.headers.get("x-cron-secret") ?? "";
 
-  if (!expected || authHeader !== `Bearer ${expected}`) {
+  if (authorization.toLowerCase().startsWith("bearer ")) {
+    return authorization.slice(7).trim();
+  }
+
+  return cronSecret.trim();
+}
+
+export async function GET(req: Request) {
+  const expected = process.env.CRON_SECRET?.trim();
+  const provided = extractSecret(req);
+
+  if (!expected || provided !== expected) {
     return unauthorized();
   }
 
