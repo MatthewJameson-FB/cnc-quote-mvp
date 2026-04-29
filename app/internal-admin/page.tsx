@@ -575,6 +575,7 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               File
             </p>
+            <p className="mb-2 text-sm text-slate-500">Customer replies go to inbox (manual handling)</p>
             {quote.fileUrl ? (
               <a
                 href={quote.fileUrl}

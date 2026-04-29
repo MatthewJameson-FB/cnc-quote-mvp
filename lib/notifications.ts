@@ -71,23 +71,31 @@ function escapeHtml(value: string) {
 async function sendResendEmail({
   to,
   cc,
+  replyTo,
   subject,
   text,
   html,
 }: {
   to: string;
   cc?: string[];
+  replyTo?: string;
   subject: string;
   text: string;
   html: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
+  const resolvedReplyTo = replyTo?.trim() || process.env.RESEND_REPLY_TO_EMAIL?.trim() || from?.trim() || "";
+
+  console.log(`sending email to: ${to ? "configured" : "missing"}`);
+  console.log(`reply_to configured: ${resolvedReplyTo ? "yes" : "no"}`);
 
   if (!apiKey || !from || !to) {
     return { sent: false, skipped: true, providerId: null, error: "Missing email config or recipient." };
   }
 
+  // Replies are handled manually via inbox (quotes@...)
+  // Future: inbound parsing / webhook
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -98,6 +106,7 @@ async function sendResendEmail({
       from,
       to,
       ...(cc?.length ? { cc } : {}),
+      ...(resolvedReplyTo ? { reply_to: resolvedReplyTo } : {}),
       subject,
       text,
       html,
@@ -229,6 +238,8 @@ function customerQuoteEmailText(details: QuoteNotificationDetails) {
     "If this estimate looks reasonable, confirm and we’ll try to get an exact quote from a suitable supplier.",
     details.confirmationYesUrl ? `Yes, proceed: ${details.confirmationYesUrl}` : null,
     details.confirmationNoUrl ? `Higher than expected: ${details.confirmationNoUrl}` : null,
+    "",
+    "You can reply directly to this email with the details 👍",
   ]
     .filter(Boolean)
     .join("\n");
@@ -256,6 +267,7 @@ function customerQuoteEmailHtml(details: QuoteNotificationDetails) {
           ${estimateCard}
           <p style="margin:0 0 12px;color:#334155">If this estimate looks reasonable, confirm and we’ll try to get an exact quote from a suitable supplier.</p>
           ${renderActionButtons(details.confirmationYesUrl, details.confirmationNoUrl)}
+          <p style="margin:12px 0 0;color:#64748b">You can reply directly to this email with the details 👍</p>
         </div>
       </div>
     </div>
@@ -402,6 +414,7 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
   const tasks = [
     sendResendEmail({
       to: details.email,
+      replyTo: process.env.RESEND_REPLY_TO_EMAIL || process.env.RESEND_FROM_EMAIL,
       subject: "We received your custom part request",
       text: customerQuoteEmailText(details),
       html: customerQuoteEmailHtml(details),
@@ -465,6 +478,8 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
     "",
     "Once we have this, we’ll confirm the final quote and get things moving.",
     "",
+    "You can reply directly to this email with the details 👍",
+    "",
     "Thanks,",
     "Flangie",
     "",
@@ -490,6 +505,7 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
         <p style="margin:0 0 12px">If you have more photos or a photo with a ruler next to it, that helps a lot.</p>
         <p style="margin:0 0 12px">You can just reply to this email with the details 👍</p>
         <p style="margin:0 0 12px">Once we have this, we’ll confirm the final quote and get things moving.</p>
+        <p style="margin:0 0 12px;color:#475569">You can reply directly to this email with the details 👍</p>
         <div style="padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#475569">${escapeHtml(quoteLine)}</div>
         <p style="margin:16px 0 0;color:#64748b">Thanks,<br />Flangie</p>
       </div>
@@ -498,6 +514,7 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
 
   return sendResendEmail({
     to: details.to,
+    replyTo: process.env.RESEND_REPLY_TO_EMAIL || process.env.RESEND_FROM_EMAIL,
     subject: "Quick details to finalise your part 👍",
     text,
     html,
