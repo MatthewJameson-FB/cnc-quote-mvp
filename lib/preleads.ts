@@ -243,6 +243,10 @@ const threeDPrintOnlyPatterns = [
   /\bhobby printer\b/i,
 ];
 const freeBudgetPatterns = [/\bfree\b/i, /\bno budget\b/i, /\bzero budget\b/i, /\bcheap as possible\b/i, /\bfor free\b/i, /\bdonate\b/i];
+const buyerProblemBoostPatterns = [/\bbroken\b/i, /\blost\b/i, /\bmissing\b/i, /\breplacement\b/i, /\bdiscontinued\b/i];
+const realWorldObjectBoostPatterns = [/\bcar\b/i, /\bvehicle\b/i, /\bappliance\b/i, /\bmachine\b/i, /\bwindow\b/i, /\bsofa\b/i];
+const urgencyFrustrationBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\banywhere\b/i, /\bwhat do i do\b/i];
+const curiosityRejectPatterns = [/\bjust curious\b/i, /\bwondering if\b/i, /\bfor fun\b/i, /\bpractice\b/i];
 const photoHintPatterns = [
   /\bphoto(?:s)?\b/i,
   /\bpicture(?:s)?\b/i,
@@ -275,7 +279,8 @@ type PreAiHardRejectReason =
   | "mattress_furniture"
   | "tutorial_course"
   | "machine_purchase"
-  | "business_advice";
+  | "business_advice"
+  | "curiosity_practice";
 
 type FinalRejectionReason =
   | "ai_confidence_too_low"
@@ -1034,6 +1039,9 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (looksLikeSupportReplacementPost(text)) score -= 12;
   if (looksLikeConsumerDeviceReplacement(text)) score -= 10;
   if (hasHighTicketFabricationSignal(text, analysis)) score += 10;
+  if (hasAnyPattern(text, buyerProblemBoostPatterns)) score += 8;
+  if (hasAnyPattern(text, realWorldObjectBoostPatterns)) score += 6;
+  if (hasAnyPattern(text, urgencyFrustrationBoostPatterns)) score += 5;
   if (analysis.negative_signals.length) score -= Math.min(8, analysis.negative_signals.length);
 
   return Math.round(score);
@@ -1324,11 +1332,20 @@ function getCandidateText(lead: Pick<Prelead, "title" | "snippet">) {
   return `${lead.title} ${lead.snippet}`;
 }
 
+function hasAnyPattern(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function looksLikeCuriosityOrPracticePost(text: string) {
+  return hasAnyPattern(text, curiosityRejectPatterns);
+}
+
 function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, includeOutsideUk: boolean) {
   const text = getCandidateText(lead);
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
 
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
+  if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
   if (bannedSignals.length > 0) return "banned_keyword";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
   if (intent.intent_type === "business_advice") return "business_advice";
@@ -1352,6 +1369,7 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   if (/\/r\/(politics|news|worldnews|ukpolitics|unitedkingdom)\//i.test(sourceUrl)) return "politics_news";
   if (/\/r\/(jobs|forhire|careerguidance|careeradvice)\//i.test(sourceUrl)) return "job";
 
+  if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
   if (bannedSignals.some((signal) => ["job", "hiring", "salary", "career"].includes(signal))) return "job";
   if (bannedSignals.some((signal) => ["politics", "news", "election", "government"].includes(signal))) return "politics_news";
   if (bannedSignals.some((signal) => ["course", "tutorial", "training"].includes(signal))) return "tutorial_course";
@@ -1546,6 +1564,9 @@ function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   if (looksLikeSupportReplacementPost(getCandidateText(lead))) score -= 15;
   if (looksLikeConsumerDeviceReplacement(getCandidateText(lead), lead.source_url)) score -= 12;
   if (hasHighTicketFabricationSignal(getCandidateText(lead), intent)) score += 12;
+  if (hasAnyPattern(getCandidateText(lead), buyerProblemBoostPatterns)) score += 8;
+  if (hasAnyPattern(getCandidateText(lead), realWorldObjectBoostPatterns)) score += 6;
+  if (hasAnyPattern(getCandidateText(lead), urgencyFrustrationBoostPatterns)) score += 5;
   if (lead.location_signal === "outside_uk") score -= 6;
 
   return score;

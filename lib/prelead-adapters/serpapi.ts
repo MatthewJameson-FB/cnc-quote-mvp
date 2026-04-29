@@ -1,45 +1,32 @@
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
 const QUERIES = [
-  // 🔥 Direct 3D printing intent (highest value)
+  // 🔥 Broken / replacement (highest intent)
+  `site:reddit.com "broken part" "replacement"`,
+  `site:reddit.com "lost part" "replacement"`,
+  `site:reddit.com "missing piece" "fix"`,
+  `site:reddit.com "discontinued part"`,
+  `site:reddit.com "can't find replacement"`,
+
+  // 🔧 Fix / repair intent
+  `site:reddit.com "how do I fix this part"`,
+  `site:reddit.com "how to repair plastic part"`,
+  `site:reddit.com "any way to fix this"`,
+
+  // 🧩 Real-world objects
+  `site:reddit.com "car trim broken"`,
+  `site:reddit.com "washing machine part broken"`,
+  `site:reddit.com "sofa leg broken"`,
+  `site:reddit.com "window switch broken"`,
+
+  // 📐 CAD / STL frustration
+  `site:reddit.com "can't find STL"`,
+  `site:reddit.com "no STL file"`,
+  `site:reddit.com "need CAD file"`,
+
+  // 🧠 Existing 3D print intent (keep some)
   `site:reddit.com "can someone 3d print this"`,
   `site:reddit.com "need this 3d printed"`,
-  `site:reddit.com "3d print this for me"`,
-  `site:reddit.com "anyone able to print this"`,
-  `site:reddit.com "print this part"`,
-
-  // 🔧 General “make this” intent (goldmine)
-  `site:reddit.com "can someone make this for me"`,
-  `site:reddit.com "where can I get this made"`,
-  `site:reddit.com "need a custom part made"`,
-  `site:reddit.com "how do I make this part"`,
-  `site:reddit.com "who can make this"`,
-
-  // 🧩 Replacement / lost parts (very strong leads)
-  `site:reddit.com "lost part" "can I print"`,
-  `site:reddit.com "replacement part" "3d print"`,
-  `site:reddit.com "broken plastic part"`,
-  `site:reddit.com "discontinued part" "replacement"`,
-
-  // 📐 CAD / STL signals (high intent)
-  `site:reddit.com "STL file" "print"`,
-  `site:reddit.com "I have a CAD file" "print"`,
-  `site:reddit.com "designed this" "3d print"`,
-  `site:reddit.com "model file" "print"`,
-
-  // 🛠️ Hobby + real-world use cases
-  `site:reddit.com "custom bracket"`,
-  `site:reddit.com "custom mount"`,
-  `site:reddit.com "adapter plate"`,
-  `site:reddit.com "small plastic part"`,
-  `site:reddit.com "prototype part"`,
-
-  // 🚗 High-value verticals
-  `site:reddit.com/r/MotoUK "custom part"`,
-  `site:reddit.com/r/CarTalkUK "custom part"`,
-  `site:reddit.com/r/3Dprinting "need help"`,
-  `site:reddit.com/r/functionalprint "request"`,
-  `site:reddit.com/r/DIY "make this part"`,
 ];
 
 type SearchRecency = "day" | "week" | "month" | "any";
