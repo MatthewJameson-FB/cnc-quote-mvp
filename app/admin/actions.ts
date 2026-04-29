@@ -211,6 +211,7 @@ export async function updateInvoiceStatus(formData: FormData) {
 export async function updateCommercialQuoteStatus(formData: FormData) {
   const quoteId = cleanString(formData.get("quoteId"));
   const quoteStatus = cleanString(formData.get("quoteStatus")) as CommercialQuoteStatus;
+  const timestamp = nowIso();
 
   if (!quoteId) {
     throw new Error("Missing quote id.");
@@ -226,18 +227,18 @@ export async function updateCommercialQuoteStatus(formData: FormData) {
 
   if (quoteStatus === "invoice_sent") {
     update.invoice_status = "invoiced";
-    update.invoiced_at = nowIso();
+    update.invoiced_at = timestamp;
   }
 
   if (quoteStatus === "paid") {
     update.invoice_status = "paid";
-    update.invoiced_at = nowIso();
-    update.paid_at = nowIso();
+    update.invoiced_at = timestamp;
+    update.paid_at = timestamp;
   }
 
   if (quoteStatus === "lost") {
     update.status = "lost";
-    update.lost_at = nowIso();
+    update.lost_at = timestamp;
   }
 
   if (quoteStatus === "supplier_accepted") {
@@ -250,10 +251,11 @@ export async function updateCommercialQuoteStatus(formData: FormData) {
 
   await updateQuoteWithCommercialFallback(quoteId, update, "commercial status", [
     `quote_status: ${quoteStatus}`,
+    quoteStatus === "sent_to_supplier" ? `supplier_brief_sent_at: ${timestamp}` : null,
     quoteStatus === "supplier_accepted" ? "supplier_fee_status: due" : null,
     quoteStatus === "invoice_sent" ? "invoice_status: invoiced" : null,
     quoteStatus === "paid" ? "invoice_status: paid" : null,
-    quoteStatus === "paid" ? `paid_at: ${nowIso()}` : null,
+    quoteStatus === "paid" ? `paid_at: ${timestamp}` : null,
   ]);
 
   revalidatePath("/internal-admin");
@@ -266,9 +268,11 @@ export async function saveCommercialQuoteFields(formData: FormData) {
   const supplierFeeStatus = supplierFeeStatusRaw
     ? (supplierFeeStatusRaw as SupplierFeeStatus)
     : null;
-  const supplierFeeAmount = parseOptionalNumber(formData.get("supplierFeeAmount"));
+  const supplierFeeAmount = parseOptionalNumber(formData.get("supplierCost") ?? formData.get("supplierFeeAmount"));
   const finalQuoteAmount = parseOptionalNumber(formData.get("finalQuoteAmount"));
   const invoiceReference = cleanString(formData.get("invoiceReference")) || null;
+  const leadTime = cleanString(formData.get("leadTime")) || null;
+  const supplierNotes = cleanString(formData.get("supplierNotes")) || null;
 
   if (!quoteId) {
     throw new Error("Missing quote id.");
@@ -297,8 +301,11 @@ export async function saveCommercialQuoteFields(formData: FormData) {
     supplierId ? `supplier_id: ${supplierId}` : null,
     supplierFeeStatus ? `supplier_fee_status: ${supplierFeeStatus}` : null,
     supplierFeeAmount != null ? `supplier_fee_amount: ${supplierFeeAmount}` : null,
+    supplierFeeAmount != null ? `supplier_cost: ${supplierFeeAmount}` : null,
     finalQuoteAmount != null ? `final_quote_amount: ${finalQuoteAmount}` : null,
     invoiceReference ? `invoice_reference: ${invoiceReference}` : null,
+    leadTime ? `lead_time: ${leadTime}` : null,
+    supplierNotes ? `supplier_notes: ${supplierNotes}` : null,
   ]);
 
   revalidatePath("/internal-admin");

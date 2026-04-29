@@ -7,6 +7,8 @@ import {
 } from "@/lib/quote-statuses";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import CopyFollowupQuestionsButton from "./CopyFollowupQuestionsButton";
+import CopySupplierBriefButton from "./CopySupplierBriefButton";
+import { generateSupplierBrief } from "@/lib/supplier-brief";
 import {
   introduceQuoteToPartner,
   saveCommercialQuoteFields,
@@ -58,6 +60,7 @@ type QuoteRecord = {
 
 type QuoteRecordWithFile = QuoteRecord & {
   fileUrl: string | null;
+  photoUrls: string[];
 };
 
 const statusTone: Record<QuoteStatus, string> = {
@@ -143,6 +146,16 @@ function extractNoteList(notes: string | null | undefined, key: string) {
     .filter(Boolean);
 }
 
+function extractCommaNoteList(notes: string | null | undefined, key: string) {
+  const raw = extractNoteValue(notes, key);
+  if (!raw) return [];
+
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function formatEstimateRange(quote: QuoteRecord) {
   if (quote.customer_estimate_min != null || quote.customer_estimate_max != null) {
     return `${formatMoney(quote.customer_estimate_min ?? null)} – ${formatMoney(quote.customer_estimate_max ?? null)}`;
@@ -177,6 +190,22 @@ function cadBriefValue(quote: QuoteRecord) {
 
 function photoFollowupQuestions(quote: QuoteRecord) {
   return extractNoteList(quote.notes, "photo_followup_questions");
+}
+
+function descriptionValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "description") || "—";
+}
+
+function leadTimeValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "lead_time") || "—";
+}
+
+function supplierNotesValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "supplier_notes") || "—";
+}
+
+function supplierBriefSentAt(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "supplier_brief_sent_at") || null;
 }
 
 function labelStage(stage: string) {
@@ -246,6 +275,17 @@ function invoiceReference(quote: QuoteRecord) {
   return quote.invoice_reference || extractNoteValue(quote.notes, "invoice_reference") || "—";
 }
 
+function marginValue(quote: QuoteRecord) {
+  const finalQuote = finalQuoteAmount(quote);
+  const supplierCost = supplierFeeAmount(quote);
+
+  if (finalQuote == null || supplierCost == null) {
+    return null;
+  }
+
+  return finalQuote - supplierCost;
+}
+
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -270,6 +310,21 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
   const revenue = calculateRevenue({ status, job_value: quote.job_value });
   const quoteRef = formatQuoteRef(quote);
   const followupQuestions = photoFollowupQuestions(quote);
+  const supplierBrief = generateSupplierBrief({
+    material: quote.material || "—",
+    quantity: quote.quantity,
+    stage: stageValue(quote),
+    manufacturingType: manufacturingTypeValue(quote),
+    routing: routingValue(quote),
+    estimateRange: formatEstimateRange(quote),
+    description: descriptionValue(quote),
+    fileUrl: quote.fileUrl,
+    photoUrls: quote.photoUrls,
+    photoReadiness: photoReadinessValue(quote),
+    cadBrief: cadBriefValue(quote),
+    followupQuestions,
+  });
+  const margin = marginValue(quote);
 
   return (
     <article className="rounded-3xl border bg-white p-5 shadow-sm">
@@ -371,8 +426,12 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
           <dd className="font-medium text-slate-900">{formatMoney(finalQuoteAmount(quote))}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">Supplier fee</dt>
+          <dt className="text-slate-500">Supplier cost</dt>
           <dd className="font-medium text-slate-900">{formatMoney(supplierFeeAmount(quote))}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Margin</dt>
+          <dd className="font-medium text-slate-900">{margin == null ? "—" : formatMoney(margin)}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Invoice ref</dt>
@@ -438,9 +497,9 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
               </select>
             </label>
             <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Supplier fee (£)
+              Supplier cost (£)
               <input
-                name="supplierFeeAmount"
+                name="supplierCost"
                 type="number"
                 step="0.01"
                 min="0"
@@ -468,6 +527,24 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
                 defaultValue={quote.invoice_reference ?? extractNoteValue(quote.notes, "invoice_reference") ?? ""}
                 className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 placeholder="Optional"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Lead time
+              <input
+                name="leadTime"
+                defaultValue={leadTimeValue(quote) === "—" ? "" : leadTimeValue(quote)}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                placeholder="e.g. 7-10 working days"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700 md:col-span-2">
+              Supplier notes
+              <textarea
+                name="supplierNotes"
+                defaultValue={supplierNotesValue(quote) === "—" ? "" : supplierNotesValue(quote)}
+                className="min-h-24 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                placeholder="Manual supplier notes"
               />
             </label>
             <div className="md:col-span-2">
@@ -629,6 +706,31 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Supplier brief
+                </p>
+                <p className="mt-1 text-sm text-slate-500">Supplier communication stays manual and customer-hidden.</p>
+              </div>
+              <CopySupplierBriefButton brief={supplierBrief} />
+            </div>
+            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-xs text-slate-700">{supplierBrief}</pre>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <form action={updateCommercialQuoteStatus}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="quoteStatus" value="sent_to_supplier" />
+                <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  Mark sent to supplier
+                </button>
+              </form>
+              {supplierBriefSentAt(quote) ? (
+                <span className="text-sm text-slate-500">Last marked sent: {formatDate(supplierBriefSentAt(quote))}</span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               CAD brief
             </p>
@@ -670,8 +772,18 @@ export default async function AdminPage() {
 
   const quotesWithFileLinks = await Promise.all<QuoteRecordWithFile>(
     (quotes ?? []).map(async (quote: QuoteRecord) => {
+      const photoPaths = extractCommaNoteList(quote.notes, "photo_urls");
+      const photoUrls = (
+        await Promise.all(
+          photoPaths.map(async (photoPath) => {
+            const { data } = await supabase.storage.from("quote-files").createSignedUrl(photoPath, 60 * 60 * 4);
+            return data?.signedUrl ?? null;
+          })
+        )
+      ).filter((value): value is string => Boolean(value));
+
       if (!quote.file_path) {
-        return { ...quote, fileUrl: null };
+        return { ...quote, fileUrl: null, photoUrls };
       }
 
       const { data: signedUrlData } = await supabase.storage
@@ -681,6 +793,7 @@ export default async function AdminPage() {
       return {
         ...quote,
         fileUrl: signedUrlData?.signedUrl ?? null,
+        photoUrls,
       };
     })
   );
