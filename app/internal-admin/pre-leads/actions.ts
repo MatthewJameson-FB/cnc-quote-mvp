@@ -59,3 +59,38 @@ export async function setPreLeadContacted(formData: FormData) {
 
   await updatePreLeadStatus(preLeadId, "contacted");
 }
+
+export async function deleteTestPreLead(formData: FormData) {
+  const preLeadId = String(formData.get("preLeadId") ?? "").trim();
+
+  if (!preLeadId) {
+    throw new Error("Missing pre-lead id.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: lead, error: lookupError } = await supabase
+    .from("pre_leads")
+    .select("id, title, snippet, source_url, source_author")
+    .eq("id", preLeadId)
+    .single();
+
+  if (lookupError || !lead) {
+    throw new Error(lookupError?.message ?? "Pre-lead not found.");
+  }
+
+  const haystack = `${lead.title ?? ""}\n${lead.snippet ?? ""}\n${lead.source_url ?? ""}\n${lead.source_author ?? ""}`.toLowerCase();
+  const isAllowed = process.env.NODE_ENV !== "production" || haystack.includes("test");
+
+  if (!isAllowed) {
+    throw new Error("Refusing to delete non-test pre-lead.");
+  }
+
+  const { error } = await supabase.from("pre_leads").delete().eq("id", preLeadId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  console.log(`admin_delete_test_prelead prelead_id=${preLeadId}`);
+  revalidatePath("/internal-admin/pre-leads");
+}

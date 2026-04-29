@@ -388,6 +388,41 @@ export async function introduceQuoteToPartner(formData: FormData) {
   revalidatePath("/internal-admin");
 }
 
+export async function deleteTestQuote(formData: FormData) {
+  const quoteId = cleanString(formData.get("quoteId"));
+
+  if (!quoteId) {
+    throw new Error("Missing quote id.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: quote, error: lookupError } = await supabase
+    .from("quotes")
+    .select("id, name, email, notes")
+    .eq("id", quoteId)
+    .single();
+
+  if (lookupError || !quote) {
+    throw new Error(lookupError?.message ?? "Quote not found.");
+  }
+
+  const haystack = `${quote.name ?? ""}\n${quote.email ?? ""}\n${quote.notes ?? ""}`.toLowerCase();
+  const isAllowed = process.env.NODE_ENV !== "production" || haystack.includes("test");
+
+  if (!isAllowed) {
+    throw new Error("Refusing to delete non-test quote.");
+  }
+
+  const { error } = await supabase.from("quotes").delete().eq("id", quoteId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  console.log(`admin_delete_test_quote quote_id=${quoteId} email=${quote.email ? "present" : "missing"}`);
+  revalidatePath("/internal-admin");
+}
+
 function getAppBaseUrl() {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim() || process.env.SITE_URL?.trim();
 

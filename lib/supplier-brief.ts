@@ -6,77 +6,156 @@ type SupplierBriefInput = {
   routing: string;
   estimateRange: string;
   description: string;
+  measurements?: string;
+  fitFunction?: string;
   fileUrl?: string | null;
   photoUrls?: string[];
   photoReadiness?: string;
+  photoAssessmentConfidence?: string;
+  photoMissingItems?: string[];
   cadBrief?: string;
   followupQuestions?: string[];
 }
 
+function clean(value: string | null | undefined) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ')
+}
+
 function shortDescription(value: string) {
-  const cleaned = value.trim().replace(/\s+/g, ' ')
-  if (!cleaned) return 'manual review'
+  const cleaned = clean(value)
+  if (!cleaned) return 'Not specified'
   return cleaned.length > 80 ? `${cleaned.slice(0, 77)}...` : cleaned
 }
 
-function label(value: string) {
-  if (value === 'needs_cad' || value === 'needs_file') return 'Needs CAD recreation'
-  if (value === 'needs_print') return 'Ready for supplier quote'
-  if (value === 'needs_both') return 'Needs review (file + photos)'
-  if (value === '3d_print') return '3D print'
-  if (value === 'cnc') return 'CNC'
-  if (value === 'fabrication') return 'Fabrication'
-  if (value === 'cad_required') return 'Needs CAD recreation'
-  if (value === 'ready_from_photos') return 'Ready from photos'
-  if (value === 'needs_more_angles') return 'Needs more angles'
-  if (value === 'needs_scale_reference') return 'Needs scale reference'
-  if (value === 'needs_physical_part') return 'Needs physical part'
-  return value || '—'
+function label(value: string | null | undefined) {
+  const cleaned = clean(value)
+  if (!cleaned) return 'Not specified'
+
+  const valueToLabel = cleaned
+
+  if (valueToLabel === 'needs_cad' || valueToLabel === 'needs_file') return 'Needs CAD recreation'
+  if (valueToLabel === 'needs_print') return 'Ready for supplier quote'
+  if (valueToLabel === 'needs_both') return 'Needs review (file + photos)'
+  if (valueToLabel === '3d_print') return '3D print'
+  if (valueToLabel === 'cnc') return 'CNC'
+  if (valueToLabel === 'fabrication') return 'Fabrication'
+  if (valueToLabel === 'cad_required') return 'Needs CAD recreation'
+  if (valueToLabel === 'ready_from_photos') return 'Ready from photos'
+  if (valueToLabel === 'needs_more_angles') return 'Needs more angles'
+  if (valueToLabel === 'needs_scale_reference') return 'Needs scale reference'
+  if (valueToLabel === 'needs_physical_part') return 'Needs physical part'
+  return valueToLabel
+}
+
+function lineValue(value: string | null | undefined, fallback = 'Not specified') {
+  const cleaned = clean(value)
+  return cleaned || fallback
+}
+
+function normalizeMissingItems(items: string[] | undefined) {
+  const actionable = new Set<string>()
+
+  for (const item of items ?? []) {
+    const cleaned = clean(item).toLowerCase()
+    if (!cleaned) continue
+
+    if (cleaned.includes('front') || cleaned.includes('side') || cleaned.includes('top')) {
+      actionable.add('Clear front, side, and top photos')
+      continue
+    }
+
+    if (cleaned.includes('ruler') || cleaned.includes('coin') || cleaned.includes('reference object') || cleaned.includes('scale')) {
+      actionable.add('Ideally with a ruler or scale reference')
+      continue
+    }
+
+    if (cleaned.includes('physical part')) {
+      actionable.add('If possible, send the physical part or close-up fit-detail photos')
+      continue
+    }
+
+    if (cleaned.includes('measurement')) {
+      actionable.add('At least one key measurement in mm')
+      continue
+    }
+
+    actionable.add(lineValue(item))
+  }
+
+  return Array.from(actionable)
+}
+
+function buildCadSummary(input: SupplierBriefInput) {
+  const manufacturing = label(input.manufacturingType)
+  const description = shortDescription(input.description)
+  const hasMeasurements = Boolean(clean(input.measurements))
+  const fitText = clean(input.fitFunction)
+
+  if (fitText && hasMeasurements) {
+    return `${description} for ${manufacturing.toLowerCase()}. Key measurements provided; fit/function noted.`
+  }
+
+  if (hasMeasurements) {
+    return `${description} for ${manufacturing.toLowerCase()}. Measurements partially known.`
+  }
+
+  if (fitText) {
+    return `${description} for ${manufacturing.toLowerCase()}. Fit/function described, dimensions still to confirm.`
+  }
+
+  return `${description} for ${manufacturing.toLowerCase()}. Dimensions still to confirm.`
 }
 
 export function generateSupplierBrief(input: SupplierBriefInput) {
-  const subject = `Quote request: ${label(input.manufacturingType)} / ${input.material || 'material tbc'} / ${shortDescription(input.description)}`
-  const photoLines = input.photoUrls?.length
-    ? input.photoUrls.map((url) => `- ${url}`)
-    : ['- None']
-  const followupLines = input.followupQuestions?.length
-    ? input.followupQuestions.map((item) => `- ${item}`)
-    : ['- None']
+  const subject = `Quote request: ${label(input.manufacturingType)} – ${lineValue(input.material)} – ${shortDescription(input.description)}`
+  const photoLines = input.photoUrls?.length ? input.photoUrls : ['See attached']
+  const measurements = clean(input.measurements)
+  const fitFunction = clean(input.fitFunction) || clean(input.description)
+  const budgetRange = clean(input.estimateRange)
+  const missingItems = normalizeMissingItems(input.photoMissingItems)
+  const photoReadiness = input.photoAssessmentConfidence
+    ? `${label(input.photoReadiness)} (${label(input.photoAssessmentConfidence)} confidence)`
+    : label(input.photoReadiness)
+  const cadSummary = buildCadSummary(input)
 
   const body = [
     'Hi,',
     '',
-    'Can you quote this job?',
+    'Can you quote this job? Looking for a quick turnaround if possible.',
     '',
-    'Customer request:',
-    `- Description: ${input.description || '—'}`,
-    `- Material: ${input.material || '—'}`,
-    `- Quantity: ${input.quantity ?? '—'}`,
-    `- Stage: ${label(input.stage)}`,
-    `- Manufacturing type: ${label(input.manufacturingType)}`,
-    `- Routing: ${label(input.routing)}`,
-    `- Estimate range: ${input.estimateRange || '—'}`,
+    'It’s a small one-off part (happy to clarify anything).',
     '',
-    'Files/photos:',
-    `- File: ${input.fileUrl || 'None'}`,
-    '- Photos:',
+    '--- DETAILS ---',
+    `Description: ${shortDescription(input.description)}`,
+    `Material: ${lineValue(input.material)}`,
+    `Quantity: ${input.quantity ?? 'Not specified'}`,
+    `Manufacturing: ${label(input.manufacturingType)}`,
+    budgetRange ? `Budget range: ${budgetRange}` : 'Budget range: Not specified',
+    '---',
+    '--- DIMENSIONS / FIT ---',
+    measurements ? `Measurements: ${measurements}` : 'Measurements: To be confirmed',
+    `Fit/function: ${fitFunction || 'Not specified'}`,
+    '---',
+    '--- FILES / PHOTOS ---',
+    `File: ${lineValue(input.fileUrl, 'None')}`,
+    'Photos:',
     ...photoLines,
+    '---',
+    '--- CAD / NOTES ---',
+    `Photo readiness: ${photoReadiness}`,
+    'Missing for CAD:',
+    ...(missingItems.length ? missingItems.map((item) => `- ${lineValue(item)}`) : ['- Not specified']),
+    `CAD summary: ${cadSummary}`,
+    '---',
+    '--- PLEASE CONFIRM ---',
+    '• Can you make this?',
+    '• Price',
+    '• Lead time',
+    '• Any missing info',
+    '---',
+    'If this looks straightforward, feel free to quote based on what\'s here 👍',
     '',
-    'CAD/photo assessment:',
-    `- Photo readiness: ${label(input.photoReadiness || '—')}`,
-    `- CAD brief: ${input.cadBrief || '—'}`,
-    '- Follow-up details:',
-    ...followupLines,
-    '',
-    'Questions for supplier:',
-    '- Can you make this?',
-    '- Estimated cost?',
-    '- Lead time?',
-    '- Any missing information?',
-    '',
-    'Please reply with price, lead time, and any questions.',
-    '',
-    'Thanks,',
+    'Thanks 👍',
     'Flangie',
   ].join('\n')
 

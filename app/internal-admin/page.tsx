@@ -6,10 +6,12 @@ import {
   type QuoteStatus,
 } from "@/lib/quote-statuses";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import ConfirmActionButton from "./ConfirmActionButton";
 import CopyFollowupQuestionsButton from "./CopyFollowupQuestionsButton";
 import CopySupplierBriefButton from "./CopySupplierBriefButton";
 import { generateSupplierBrief } from "@/lib/supplier-brief";
 import {
+  deleteTestQuote,
   introduceQuoteToPartner,
   saveCommercialQuoteFields,
   updateCommercialQuoteStatus,
@@ -70,12 +72,6 @@ const statusTone: Record<QuoteStatus, string> = {
   quoted: "bg-violet-100 text-violet-900 ring-1 ring-violet-200",
   won: "bg-green-100 text-green-900 ring-1 ring-green-200",
   lost: "bg-red-100 text-red-900 ring-1 ring-red-200",
-};
-
-const invoiceTone: Record<string, string> = {
-  unbilled: "bg-slate-100 text-slate-800 ring-1 ring-slate-200",
-  invoiced: "bg-amber-100 text-amber-900 ring-1 ring-amber-200",
-  paid: "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200",
 };
 
 const commercialQuoteTone: Record<string, string> = {
@@ -188,12 +184,24 @@ function cadBriefValue(quote: QuoteRecord) {
   return extractNoteValue(quote.notes, "cad_brief") || "—";
 }
 
+function photoAssessmentConfidenceValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "photo_assessment_confidence") || "";
+}
+
+function photoMissingItemsValue(quote: QuoteRecord) {
+  return extractNoteList(quote.notes, "photo_missing_items");
+}
+
 function photoFollowupQuestions(quote: QuoteRecord) {
   return extractNoteList(quote.notes, "photo_followup_questions");
 }
 
 function descriptionValue(quote: QuoteRecord) {
   return extractNoteValue(quote.notes, "description") || "—";
+}
+
+function measurementsValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "measurements") || "";
 }
 
 function leadTimeValue(quote: QuoteRecord) {
@@ -208,32 +216,11 @@ function supplierBriefSentAt(quote: QuoteRecord) {
   return extractNoteValue(quote.notes, "supplier_brief_sent_at") || null;
 }
 
-function labelStage(stage: string) {
-  if (stage === "needs_cad" || stage === "needs_file") return "Needs CAD recreation";
-  if (stage === "needs_print") return "Ready for supplier quote";
-  if (stage === "needs_both") return "Needs review (file + photos)";
-  return stage;
-}
-
-function labelRouting(routing: string) {
-  if (routing === "cad_required") return "Needs CAD recreation";
-  if (routing === "3d_print" || routing === "cnc") return "Ready for supplier quote";
-  return "Review";
-}
-
 function labelManufacturingType(type: string) {
   if (type === "3d_print") return "3D print";
   if (type === "cnc") return "CNC";
   if (type === "fabrication") return "Fabrication";
   return type;
-}
-
-function labelPhotoReadiness(value: string) {
-  if (value === "ready_from_photos") return "Ready from photos";
-  if (value === "needs_more_angles") return "Needs more angles";
-  if (value === "needs_scale_reference") return "Needs scale reference";
-  if (value === "needs_physical_part") return "Needs physical part";
-  return value;
 }
 
 function labelCommercialStatus(status: string) {
@@ -271,10 +258,6 @@ function finalQuoteAmount(quote: QuoteRecord) {
   return raw ? Number(raw) || quote.job_value || null : quote.job_value || null;
 }
 
-function invoiceReference(quote: QuoteRecord) {
-  return quote.invoice_reference || extractNoteValue(quote.notes, "invoice_reference") || "—";
-}
-
 function marginValue(quote: QuoteRecord) {
   const finalQuote = finalQuoteAmount(quote);
   const supplierCost = supplierFeeAmount(quote);
@@ -284,6 +267,47 @@ function marginValue(quote: QuoteRecord) {
   }
 
   return finalQuote - supplierCost;
+}
+
+function estimateConfidenceValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "estimate_confidence") || "—";
+}
+
+function needsCadRecreation(quote: QuoteRecord) {
+  const stage = stageValue(quote);
+  const routing = routingValue(quote);
+  return routing === "cad_required" || stage === "needs_cad" || stage === "needs_both";
+}
+
+function nextActionText(quote: QuoteRecord) {
+  const commercialStatus = commercialQuoteStatus(quote);
+  const routing = routingValue(quote);
+  const estimateAccepted = extractNoteValue(quote.notes, "estimate_accepted") === "true";
+
+  if (commercialStatus === "awaiting_final_details") return "Send follow-up to customer";
+  if (commercialStatus === "sent_to_supplier") return "Waiting for supplier quote";
+  if (estimateAccepted) return "Prepare supplier brief";
+  if (routing === "3d_print" || routing === "cnc") return "Send to supplier";
+  return "Review request";
+}
+
+function buildAlerts(quote: QuoteRecordWithFile) {
+  const alerts: string[] = [];
+  if (quote.photoUrls.length && !measurementsValue(quote)) alerts.push("Missing measurements");
+  if (photoReadinessValue(quote) === "needs_more_angles" || photoReadinessValue(quote) === "needs_scale_reference") {
+    alerts.push("Needs more photos");
+  }
+  if (photoAssessmentConfidenceValue(quote) === "low" || estimateConfidenceValue(quote) === "low") {
+    alerts.push("Low confidence");
+  }
+  if (needsCadRecreation(quote)) alerts.push("Needs CAD recreation");
+  return alerts;
+}
+
+function isTestLikeQuote(quote: QuoteRecord) {
+  if (process.env.NODE_ENV !== "production") return true;
+  const haystack = `${quote.name ?? ""}\n${quote.email ?? ""}\n${quote.notes ?? ""}`.toLowerCase();
+  return haystack.includes("test");
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -307,9 +331,11 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
   const status = displayStatus(quote.status);
   const commercialStatus = commercialQuoteStatus(quote);
   const feeStatus = supplierFeeStatus(quote);
-  const revenue = calculateRevenue({ status, job_value: quote.job_value });
   const quoteRef = formatQuoteRef(quote);
   const followupQuestions = photoFollowupQuestions(quote);
+  const alerts = buildAlerts(quote);
+  const estimateConfidence = estimateConfidenceValue(quote);
+  const canDelete = isTestLikeQuote(quote);
   const supplierBrief = generateSupplierBrief({
     material: quote.material || "—",
     quantity: quote.quantity,
@@ -318,155 +344,121 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
     routing: routingValue(quote),
     estimateRange: formatEstimateRange(quote),
     description: descriptionValue(quote),
+    measurements: measurementsValue(quote),
+    fitFunction: descriptionValue(quote),
     fileUrl: quote.fileUrl,
     photoUrls: quote.photoUrls,
     photoReadiness: photoReadinessValue(quote),
+    photoAssessmentConfidence: photoAssessmentConfidenceValue(quote),
+    photoMissingItems: photoMissingItemsValue(quote),
     cadBrief: cadBriefValue(quote),
     followupQuestions,
   });
   const margin = marginValue(quote);
+  const description = descriptionValue(quote);
+  const nextAction = nextActionText(quote);
 
   return (
     <article className="rounded-3xl border bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Quote ref
-            </p>
-            <p className="text-lg font-bold text-slate-900">{quoteRef}</p>
-          </div>
-
-          <div>
-            <p className="text-lg font-semibold text-slate-900">
-              {quote.name || "No customer name"}
-            </p>
-            <p className="text-sm text-slate-500">{quote.email || "No customer email"}</p>
-          </div>
-        </div>
-
-        <div className="text-right">
-          <Badge tone={statusTone[status]}>{displayStatusLabel(status)}</Badge>
-          <div className="mt-2 flex flex-wrap justify-end gap-2">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={statusTone[status]}>{displayStatusLabel(status)}</Badge>
             <Badge tone={commercialQuoteTone[commercialStatus] ?? commercialQuoteTone.submitted}>
               {labelCommercialStatus(commercialStatus)}
             </Badge>
             <Badge tone={supplierFeeTone[feeStatus] ?? supplierFeeTone.not_due}>{feeStatus}</Badge>
           </div>
-          <p className="mt-3 text-2xl font-bold text-slate-900">
-            {formatMoney(quote.quote_low)} – {formatMoney(quote.quote_high)}
-          </p>
-          <p className="text-sm text-slate-500">{formatDate(quote.created_at)}</p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next action</p>
+            <p className="text-lg font-semibold text-slate-900">{nextAction}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quote ref</p>
+            <p className="text-base font-bold text-slate-900">{quoteRef}</p>
+            <p className="text-sm text-slate-500">{quote.name || "No customer name"} · {quote.email || "No customer email"}</p>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <p className="text-2xl font-bold text-slate-900">{formatEstimateRange(quote)}</p>
+          <p className="text-sm text-slate-500">Created {formatDate(quote.created_at)}</p>
         </div>
       </div>
 
-      <dl className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <dt className="text-slate-500">Material</dt>
-          <dd className="font-medium text-slate-900">{quote.material || "—"}</dd>
+      <div className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm md:grid-cols-5">
+        <div className="md:col-span-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Description</p>
+          <p className="mt-1 font-medium text-slate-900">{description}</p>
         </div>
         <div>
-          <dt className="text-slate-500">Quantity</dt>
-          <dd className="font-medium text-slate-900">{quote.quantity ?? "—"}</dd>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Manufacturing</p>
+          <p className="mt-1 font-medium text-slate-900">{labelManufacturingType(manufacturingTypeValue(quote))}</p>
         </div>
         <div>
-          <dt className="text-slate-500">Complexity</dt>
-          <dd className="font-medium text-slate-900">{quote.complexity || "—"}</dd>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Material</p>
+          <p className="mt-1 font-medium text-slate-900">{quote.material || "—"}</p>
         </div>
         <div>
-          <dt className="text-slate-500">Volume</dt>
-          <dd className="font-medium text-slate-900">
-            {quote.volume_cm3 == null ? "—" : `${quote.volume_cm3} cm³`}
-          </dd>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Confidence</p>
+          <p className="mt-1 font-medium text-slate-900">{estimateConfidence}</p>
         </div>
-        <div>
-          <dt className="text-slate-500">Introduced</dt>
-          <dd className="font-medium text-slate-900">
-            {quote.introduced ? `Yes · ${formatDate(quote.introduced_at)}` : "No"}
-          </dd>
+      </div>
+
+      {alerts.length ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Alerts</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+            {alerts.map((alert) => (
+              <li key={alert}>{alert}</li>
+            ))}
+          </ul>
         </div>
-        <div>
-          <dt className="text-slate-500">Accepted</dt>
-          <dd className="font-medium text-slate-900">
-            {quote.partner_accepted ? `Yes · ${formatDate(quote.accepted_at)}` : "No"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Quote value</dt>
-          <dd className="font-medium text-slate-900">
-            {formatMoney(quote.job_value)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Stage</dt>
-          <dd className="font-medium text-slate-900">{labelStage(stageValue(quote))}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Routing</dt>
-          <dd className="font-medium text-slate-900">{labelRouting(routingValue(quote))}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Manufacturing</dt>
-          <dd className="font-medium text-slate-900">{labelManufacturingType(manufacturingTypeValue(quote))}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Quote status</dt>
-          <dd className="font-medium text-slate-900">{labelCommercialStatus(commercialStatus)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Photo readiness</dt>
-          <dd className="font-medium text-slate-900">{labelPhotoReadiness(photoReadinessValue(quote))}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Customer estimate</dt>
-          <dd className="font-medium text-slate-900">{formatEstimateRange(quote)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Final quote amount</dt>
-          <dd className="font-medium text-slate-900">{formatMoney(finalQuoteAmount(quote))}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Supplier cost</dt>
-          <dd className="font-medium text-slate-900">{formatMoney(supplierFeeAmount(quote))}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Margin</dt>
-          <dd className="font-medium text-slate-900">{margin == null ? "—" : formatMoney(margin)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Invoice ref</dt>
-          <dd className="font-medium text-slate-900">{invoiceReference(quote)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Invoice status</dt>
-          <dd className="font-medium text-slate-900">
-            <Badge tone={invoiceTone[quote.invoice_status ?? "unbilled"] ?? invoiceTone.unbilled}>
-              {quote.invoice_status ?? "unbilled"}
-            </Badge>
-          </dd>
-        </div>
-      </dl>
+      ) : null}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
-          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Partner
-              </p>
-              <p className="mt-1 font-medium text-slate-900">{quote.partner_name || "—"}</p>
-              <p className="text-sm text-slate-500">{quote.partner_email || "—"}</p>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Invoice tracking
-              </p>
-              <p className="mt-1 font-medium text-slate-900">{quote.invoice_status ?? "unbilled"}</p>
-              <p className="text-sm text-slate-500">Invoiced: {formatDate(quote.invoiced_at)}</p>
-              <p className="text-sm text-slate-500">Paid: {formatDate(quote.paid_at)}</p>
-              {quote.invoice_notes ? (
-                <p className="mt-2 text-sm text-slate-600">{quote.invoice_notes}</p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {followupQuestions.length ? <CopyFollowupQuestionsButton questions={followupQuestions} /> : null}
+              <CopySupplierBriefButton brief={supplierBrief} />
+              <form action={updateCommercialQuoteStatus}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="quoteStatus" value="awaiting_final_details" />
+                <button className="rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900 hover:bg-cyan-100">
+                  Mark awaiting details
+                </button>
+              </form>
+              <form action={updateCommercialQuoteStatus}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="quoteStatus" value="sent_to_supplier" />
+                <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  Mark sent to supplier
+                </button>
+              </form>
+              <form action={updateCommercialQuoteStatus}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="quoteStatus" value="paid" />
+                <button className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100">
+                  Mark paid
+                </button>
+              </form>
+              <form action={updateCommercialQuoteStatus}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <input type="hidden" name="quoteStatus" value="lost" />
+                <button className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                  Mark lost
+                </button>
+              </form>
+              {canDelete ? (
+                <ConfirmActionButton
+                  action={deleteTestQuote}
+                  fields={[{ name: "quoteId", value: quote.id }]}
+                  label="Delete test quote"
+                  confirmMessage="Delete this test quote? This cannot be undone."
+                  className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                />
               ) : null}
             </div>
           </div>
@@ -573,51 +565,6 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
             </button>
           </form>
 
-          <div className="flex flex-wrap gap-2">
-            <form action={updateCommercialQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="quoteStatus" value="awaiting_final_details" />
-              <button className="rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900 hover:bg-cyan-100">
-                Mark awaiting final details
-              </button>
-            </form>
-            <form action={updateCommercialQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="quoteStatus" value="sent_to_supplier" />
-              <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                Mark sent to supplier
-              </button>
-            </form>
-            <form action={updateCommercialQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="quoteStatus" value="supplier_accepted" />
-              <button className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-                Mark supplier accepted
-              </button>
-            </form>
-            <form action={updateCommercialQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="quoteStatus" value="invoice_sent" />
-              <button className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
-                Mark invoice sent
-              </button>
-            </form>
-            <form action={updateCommercialQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="quoteStatus" value="paid" />
-              <button className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100">
-                Mark paid
-              </button>
-            </form>
-            <form action={updateCommercialQuoteStatus}>
-              <input type="hidden" name="quoteId" value={quote.id} />
-              <input type="hidden" name="quoteStatus" value="lost" />
-              <button className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-                Mark lost
-              </button>
-            </form>
-          </div>
-
           <form
             action={introduceQuoteToPartner}
             className="grid gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4"
@@ -652,60 +599,6 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Revenue breakdown
-            </p>
-            <div className="mt-3 space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-600">Lead fee</span>
-                <span className="font-medium text-slate-900">{formatMoney(revenue.lead_fee)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-600">Success fee</span>
-                <span className="font-medium text-slate-900">{formatMoney(revenue.success_fee)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
-                <span className="font-semibold text-slate-900">Total revenue</span>
-                <span className="font-semibold text-slate-900">{formatMoney(revenue.total_revenue)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Timeline
-            </p>
-            <div className="mt-3 space-y-2 text-slate-700">
-              <p>Quoted: {formatDate(quote.quoted_at)}</p>
-              <p>Won: {formatDate(quote.won_at)}</p>
-              <p>Lost: {formatDate(quote.lost_at)}</p>
-              <p>Invoiced: {formatDate(quote.invoiced_at)}</p>
-              <p>Paid: {formatDate(quote.paid_at)}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              File
-            </p>
-            <p className="mb-2 text-sm text-slate-500">Customer replies go to inbox (manual handling)</p>
-            {quote.fileUrl ? (
-              <a
-                href={quote.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-blue-600 underline"
-              >
-                Open file
-              </a>
-            ) : quote.file_path ? (
-              <span className="text-amber-700">File link unavailable</span>
-            ) : (
-              <span className="text-slate-400">No file uploaded</span>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -730,25 +623,64 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              CAD brief
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{cadBriefValue(quote)}</p>
-
-            {followupQuestions.length ? (
-              <div className="mt-4 border-t border-slate-200 pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Follow-up questions
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                  {followupQuestions.map((question) => (
-                    <li key={question}>{question}</li>
-                  ))}
-                </ul>
-                <CopyFollowupQuestionsButton questions={followupQuestions} />
+          <details className="rounded-2xl border border-slate-200 bg-white p-4">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">View full details</summary>
+            <div className="mt-4 space-y-4 text-sm text-slate-700">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Measurements</p>
+                <p className="mt-1">{measurementsValue(quote) || "—"}</p>
               </div>
-            ) : null}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Files / photos</p>
+                <div className="mt-1 space-y-1">
+                  <p>File: {quote.fileUrl ? <a href={quote.fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">Open file</a> : quote.file_path ? <span className="text-amber-700">File link unavailable</span> : "None"}</p>
+                  <p>Photos:</p>
+                  <ul className="list-disc pl-5">
+                    {quote.photoUrls.length ? quote.photoUrls.map((url) => <li key={url}><a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">{url}</a></li>) : <li>None</li>}
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">CAD notes</p>
+                <p className="mt-1 whitespace-pre-wrap">{cadBriefValue(quote)}</p>
+                {followupQuestions.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {followupQuestions.map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full notes</p>
+                <pre className="mt-1 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-xs text-slate-700">{quote.notes || "—"}</pre>
+              </div>
+              <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Partner</p>
+                  <p className="mt-1 font-medium text-slate-900">{quote.partner_name || "—"}</p>
+                  <p className="text-slate-500">{quote.partner_email || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Timeline</p>
+                  <p>Quoted: {formatDate(quote.quoted_at)}</p>
+                  <p>Won: {formatDate(quote.won_at)}</p>
+                  <p>Lost: {formatDate(quote.lost_at)}</p>
+                  <p>Invoiced: {formatDate(quote.invoiced_at)}</p>
+                  <p>Paid: {formatDate(quote.paid_at)}</p>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Commercial info</p>
+            <div className="mt-3 grid gap-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between gap-3"><span>Supplier cost</span><span className="font-medium text-slate-900">{formatMoney(supplierFeeAmount(quote))}</span></div>
+              <div className="flex items-center justify-between gap-3"><span>Final quote</span><span className="font-medium text-slate-900">{formatMoney(finalQuoteAmount(quote))}</span></div>
+              <div className="flex items-center justify-between gap-3"><span>Margin</span><span className="font-medium text-slate-900">{margin == null ? "—" : formatMoney(margin)}</span></div>
+              <div className="flex items-center justify-between gap-3"><span>Quote status</span><span className="font-medium text-slate-900">{labelCommercialStatus(commercialStatus)}</span></div>
+            </div>
           </div>
         </div>
       </div>

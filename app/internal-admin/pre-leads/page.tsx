@@ -1,7 +1,8 @@
 import { requireAdminUser } from "@/lib/admin-auth";
 import { preLeadStatusLabels, type PreLeadStatus } from "@/lib/pre-lead-statuses";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
-import { setPreLeadContacted, setPreLeadRejected, setPreLeadReviewed } from "./actions";
+import ConfirmActionButton from "../ConfirmActionButton";
+import { deleteTestPreLead, setPreLeadContacted, setPreLeadRejected, setPreLeadReviewed } from "./actions";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,12 @@ function extractNoteValue(notes: string | null, key: string) {
   return lastMatch?.[1]?.trim() || null;
 }
 
+function isTestLikePreLead(lead: PreLeadRecord) {
+  if (process.env.NODE_ENV !== "production") return true;
+  const haystack = `${lead.title}\n${lead.snippet}\n${lead.source_url}\n${lead.source_author ?? ""}`.toLowerCase();
+  return haystack.includes("test");
+}
+
 function LeadCard({
   lead,
   converted,
@@ -82,6 +89,7 @@ function LeadCard({
   estimateAccepted: boolean;
 }) {
   const status = (lead.status ?? "new") as PreLeadStatus;
+  const canDelete = isTestLikePreLead(lead);
 
   return (
     <article className="rounded-3xl border bg-white p-5 shadow-sm">
@@ -160,6 +168,15 @@ function LeadCard({
             Mark contacted
           </button>
         </form>
+        {canDelete ? (
+          <ConfirmActionButton
+            action={deleteTestPreLead}
+            fields={[{ name: "preLeadId", value: lead.id }]}
+            label="Delete test prelead"
+            confirmMessage="Delete this test prelead? This cannot be undone."
+            className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+          />
+        ) : null}
       </div>
     </article>
   );
