@@ -337,6 +337,7 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
   const estimateConfidence = estimateConfidenceValue(quote);
   const canDelete = isTestLikeQuote(quote);
   const supplierBrief = generateSupplierBrief({
+    quoteId: quote.id,
     material: quote.material || "—",
     quantity: quote.quantity,
     stage: stageValue(quote),

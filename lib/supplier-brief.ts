@@ -1,4 +1,5 @@
 type SupplierBriefInput = {
+  quoteId?: string;
   material: string;
   quantity: number | null | undefined;
   stage: string;
@@ -75,6 +76,27 @@ function isLikelyImageUrl(url: string) {
   return /\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i.test(path)
 }
 
+function getAppBaseUrl() {
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim() || process.env.SITE_URL?.trim()
+
+  if (explicit) {
+    return explicit.startsWith('http') ? explicit : `https://${explicit}`
+  }
+
+  const vercelUrl = process.env.VERCEL_URL?.trim()
+
+  if (vercelUrl) {
+    return vercelUrl.startsWith('http') ? vercelUrl : `https://${vercelUrl}`
+  }
+
+  return 'http://localhost:3000'
+}
+
+function buildShortFileLink(quoteId: string, type: 'file' | 'photo', index: number) {
+  const baseUrl = getAppBaseUrl()
+  return `${baseUrl}/api/file-link?quote_id=${encodeURIComponent(quoteId)}&type=${type}&index=${index}`
+}
+
 function normalizeMissingItems(items: string[] | undefined) {
   const actionable = new Set<string>()
 
@@ -137,7 +159,7 @@ export function generateSupplierBrief(input: SupplierBriefInput) {
   const dedupedPhotoUrls = uniqueUrls([...(input.photoUrls ?? []), ...fileImageUrls]).filter(
     (url) => !nonImageFileUrls.includes(url)
   )
-  const fileUrls = nonImageFileUrls.filter((url) => !dedupedPhotoUrls.includes(url))
+  const fallbackFileUrls = nonImageFileUrls.filter((url) => !dedupedPhotoUrls.includes(url))
   const visiblePhotoUrls = dedupedPhotoUrls.slice(0, 5)
   const extraPhotoCount = Math.max(dedupedPhotoUrls.length - visiblePhotoUrls.length, 0)
   const measurements = clean(input.measurements)
@@ -148,6 +170,12 @@ export function generateSupplierBrief(input: SupplierBriefInput) {
     ? `${label(input.photoReadiness)} (${label(input.photoAssessmentConfidence)} confidence)`
     : label(input.photoReadiness)
   const cadSummary = buildCadSummary(input)
+  const fileUrls = input.quoteId
+    ? (nonImageFileUrls.length ? [buildShortFileLink(input.quoteId, 'file', 1)] : [])
+    : fallbackFileUrls
+  const visiblePhotoLinks = input.quoteId
+    ? visiblePhotoUrls.map((_, index) => buildShortFileLink(input.quoteId as string, 'photo', index + 1))
+    : visiblePhotoUrls
 
   const body = [
     'Hi,',
@@ -169,7 +197,7 @@ export function generateSupplierBrief(input: SupplierBriefInput) {
     '---',
     '--- FILES / PHOTOS ---',
     ...(fileUrls.length ? ['File:', ...formatLabeledUrls('File', fileUrls)] : ['File: None']),
-    ...(visiblePhotoUrls.length ? ['Photos:', ...formatLabeledUrls('Photo', visiblePhotoUrls)] : ['Photos: None']),
+    ...(visiblePhotoLinks.length ? ['Photos:', ...formatLabeledUrls('Photo', visiblePhotoLinks)] : ['Photos: None']),
     ...(extraPhotoCount > 0 ? [`+ ${extraPhotoCount} more photos available in admin`] : []),
     '---',
     '--- CAD / NOTES ---',
