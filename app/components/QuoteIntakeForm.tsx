@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { calculateQuote, type Material, type Complexity } from "@/lib/pricing";
@@ -496,6 +497,34 @@ export default function QuoteIntakeForm() {
             </div>
           </section>
         </div>
+
+        <section className="mt-14 border-t border-white/10 pt-8">
+          <div className="max-w-3xl space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Helpful guides</h2>
+            <ul className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
+              <li>
+                <Link href="/can-you-3d-print-a-replacement-part" className="transition hover:text-white">
+                  Can you 3D print a replacement part?
+                </Link>
+              </li>
+              <li>
+                <Link href="/how-to-make-a-custom-part" className="transition hover:text-white">
+                  How to make a custom part
+                </Link>
+              </li>
+              <li>
+                <Link href="/lost-a-part-how-to-recreate-it" className="transition hover:text-white">
+                  Lost a part? How to recreate it
+                </Link>
+              </li>
+              <li>
+                <Link href="/custom-bracket-fabrication" className="transition hover:text-white">
+                  Custom bracket fabrication
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </section>
       </div>
     </main>
   );
