@@ -6,6 +6,7 @@ import {
   type QuoteStatus,
 } from "@/lib/quote-statuses";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import CopyFollowupQuestionsButton from "./CopyFollowupQuestionsButton";
 import {
   introduceQuoteToPartner,
   saveCommercialQuoteFields,
@@ -132,6 +133,16 @@ function extractNoteValue(notes: string | null | undefined, key: string) {
   return lastMatch?.[1]?.trim() || null;
 }
 
+function extractNoteList(notes: string | null | undefined, key: string) {
+  const raw = extractNoteValue(notes, key);
+  if (!raw) return [];
+
+  return raw
+    .split("|")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function formatEstimateRange(quote: QuoteRecord) {
   if (quote.customer_estimate_min != null || quote.customer_estimate_max != null) {
     return `${formatMoney(quote.customer_estimate_min ?? null)} – ${formatMoney(quote.customer_estimate_max ?? null)}`;
@@ -156,6 +167,18 @@ function manufacturingTypeValue(quote: QuoteRecord) {
   return extractNoteValue(quote.notes, "manufacturing_type") || quote.material || "—";
 }
 
+function photoReadinessValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "photo_readiness") || "—";
+}
+
+function cadBriefValue(quote: QuoteRecord) {
+  return extractNoteValue(quote.notes, "cad_brief") || "—";
+}
+
+function photoFollowupQuestions(quote: QuoteRecord) {
+  return extractNoteList(quote.notes, "photo_followup_questions");
+}
+
 function labelStage(stage: string) {
   if (stage === "needs_cad" || stage === "needs_file") return "Needs CAD recreation";
   if (stage === "needs_print") return "Ready for supplier quote";
@@ -174,6 +197,14 @@ function labelManufacturingType(type: string) {
   if (type === "cnc") return "CNC";
   if (type === "fabrication") return "Fabrication";
   return type;
+}
+
+function labelPhotoReadiness(value: string) {
+  if (value === "ready_from_photos") return "Ready from photos";
+  if (value === "needs_more_angles") return "Needs more angles";
+  if (value === "needs_scale_reference") return "Needs scale reference";
+  if (value === "needs_physical_part") return "Needs physical part";
+  return value;
 }
 
 function labelCommercialStatus(status: string) {
@@ -238,6 +269,7 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
   const feeStatus = supplierFeeStatus(quote);
   const revenue = calculateRevenue({ status, job_value: quote.job_value });
   const quoteRef = formatQuoteRef(quote);
+  const followupQuestions = photoFollowupQuestions(quote);
 
   return (
     <article className="rounded-3xl border bg-white p-5 shadow-sm">
@@ -325,6 +357,10 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
         <div>
           <dt className="text-slate-500">Quote status</dt>
           <dd className="font-medium text-slate-900">{labelCommercialStatus(commercialStatus)}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Photo readiness</dt>
+          <dd className="font-medium text-slate-900">{labelPhotoReadiness(photoReadinessValue(quote))}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Customer estimate</dt>
@@ -590,6 +626,27 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
             ) : (
               <span className="text-slate-400">No file uploaded</span>
             )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              CAD brief
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{cadBriefValue(quote)}</p>
+
+            {followupQuestions.length ? (
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Follow-up questions
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  {followupQuestions.map((question) => (
+                    <li key={question}>{question}</li>
+                  ))}
+                </ul>
+                <CopyFollowupQuestionsButton questions={followupQuestions} />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

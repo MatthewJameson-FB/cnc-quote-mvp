@@ -23,6 +23,10 @@ type QuoteNotificationDetails = {
   measurements?: string;
   description?: string;
   cadRequired?: boolean;
+  photoReadiness?: string;
+  photoAssessmentConfidence?: string;
+  photoMissingItems?: string[];
+  cadBrief?: string;
   estimate?: EstimateQuoteResult;
   confirmationYesUrl?: string;
   confirmationNoUrl?: string;
@@ -45,6 +49,8 @@ type IntroductionEmailDetails = {
 type ChecklistEmailDetails = {
   to: string;
   quoteId: string;
+  photoReadiness?: string | null;
+  missingItems?: string[];
 };
 
 type PreleadSummaryItem = {
@@ -148,6 +154,14 @@ function manufacturingTypeLabel(type?: string) {
   if (type === "cnc") return "CNC";
   if (type === "fabrication") return "Fabrication";
   return type || "—";
+}
+
+function photoReadinessLabel(value?: string) {
+  if (value === "ready_from_photos") return "Ready from photos";
+  if (value === "needs_more_angles") return "Needs more angles";
+  if (value === "needs_scale_reference") return "Needs scale reference";
+  if (value === "needs_physical_part") return "Needs physical part";
+  return value || "—";
 }
 
 function actionHint(details: QuoteNotificationDetails) {
@@ -302,6 +316,12 @@ function internalQuoteEmailText(details: QuoteNotificationDetails) {
           `Measurement: ${details.measurements || "—"}`,
           `Description: ${details.description || "—"}`,
           `CAD required: ${details.cadRequired ? "yes" : "no"}`,
+          `Photo readiness: ${photoReadinessLabel(details.photoReadiness)}`,
+          `Photo assessment confidence: ${details.photoAssessmentConfidence || "—"}`,
+          details.photoMissingItems?.length
+            ? `Missing items: ${details.photoMissingItems.join("; ")}`
+            : null,
+          details.cadBrief ? `CAD brief: ${details.cadBrief}` : null,
         ]
       : []),
     "",
@@ -388,7 +408,11 @@ function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
               ${renderDetailRow("Measurement", details.measurements || "—")}
               ${renderDetailRow("Description", details.description || "—")}
               ${renderDetailRow("CAD required", details.cadRequired ? "Yes" : "No")}
+              ${renderDetailRow("Photo readiness", photoReadinessLabel(details.photoReadiness))}
+              ${renderDetailRow("Assessment confidence", details.photoAssessmentConfidence || "—")}
+              ${renderDetailRow("Missing items", details.photoMissingItems?.join("; ") || "—")}
             </table>
+            ${details.cadBrief ? `<div style="margin-top:16px;padding:16px;background:#f8fafc;border:1px solid ${border};border-radius:12px"><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">CAD brief</div><div style="color:#334155;font-size:14px">${escapeHtml(details.cadBrief)}</div></div>` : ""}
           </div>
         ` : ""}
 
@@ -444,6 +468,8 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
   const quoteLine = `Quote reference: ${details.quoteId}`;
   const hasApiKey = Boolean(process.env.RESEND_API_KEY?.trim());
   const hasFromEmail = Boolean(process.env.RESEND_FROM_EMAIL?.trim());
+  const missingItems = details.missingItems?.filter(Boolean) ?? [];
+  const needsPhotoSpecificFollowUp = details.photoReadiness && details.photoReadiness !== "ready_from_photos";
 
   console.log(
     `Checklist email config check: RESEND_API_KEY present=${hasApiKey ? "yes" : "no"} RESEND_FROM_EMAIL present=${hasFromEmail ? "yes" : "no"}`
@@ -454,8 +480,13 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
     "",
     "Thanks for confirming — we can move this forward 👍",
     "",
-    "To make sure the part is quoted accurately and built correctly, we just need a couple of quick details:",
+    needsPhotoSpecificFollowUp
+      ? "To assess the part properly from photos, we still need a couple of extra details before we can prepare the CAD brief for review:"
+      : "To make sure the part is quoted correctly and built correctly, we just need a couple of quick details:",
     "",
+    ...(needsPhotoSpecificFollowUp && missingItems.length
+      ? ["Please send:", ...missingItems.map((item) => `- ${item}`), ""]
+      : []),
     "1) Size / dimensions",
     "- Any key measurements (mm is best)",
     "(e.g. width, height, hole spacing)",
@@ -472,7 +503,9 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
     "5) Anything important",
     "- Does it need to be strong, flexible, or a precise fit?",
     "",
-    "If you have more photos or a photo with a ruler next to it, that helps a lot.",
+    needsPhotoSpecificFollowUp
+      ? "If the scale is unclear, please include a ruler, coin, or another reference object in at least one photo."
+      : "If you have more photos or a photo with a ruler next to it, that helps a lot.",
     "",
     "You can just reply to this email with the details 👍",
     "",
@@ -488,13 +521,22 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
     .filter(Boolean)
     .join("\n");
 
+  const htmlMissingItems = needsPhotoSpecificFollowUp && missingItems.length
+    ? `<div style="margin:0 0 16px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px"><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Please send</div><ul style="margin:0 0 0 18px;padding:0;color:#334155">${missingItems.map((item) => `<li style="margin-top:6px">${escapeHtml(item)}</li>`).join("")}</ul></div>`
+    : "";
+
   const html = `
     <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">
       <div style="max-width:640px;margin:0 auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
         <h2 style="margin:0 0 12px;font-size:28px">A few final details before we quote</h2>
         <p style="margin:0 0 12px">Hi,</p>
         <p style="margin:0 0 12px">Thanks for confirming — we can move this forward 👍</p>
-        <p style="margin:0 0 12px">To make sure the part is quoted accurately and built correctly, we just need a couple of quick details:</p>
+        <p style="margin:0 0 12px">${escapeHtml(
+          needsPhotoSpecificFollowUp
+            ? "To assess the part properly from photos, we still need a couple of extra details before we can prepare the CAD brief for review:"
+            : "To make sure the part is quoted correctly and built correctly, we just need a couple of quick details:"
+        )}</p>
+        ${htmlMissingItems}
         <ul style="margin:0 0 16px 20px;padding:0;color:#334155">
           <li><strong>Size / dimensions</strong><br />Any key measurements (mm is best)<br />(e.g. width, height, hole spacing)</li>
           <li style="margin-top:8px"><strong>What it connects to</strong><br />What does the part fit into or attach to?</li>
@@ -502,7 +544,11 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
           <li style="margin-top:8px"><strong>Quantity</strong><br />Just 1, or multiple?</li>
           <li style="margin-top:8px"><strong>Anything important</strong><br />Does it need to be strong, flexible, or a precise fit?</li>
         </ul>
-        <p style="margin:0 0 12px">If you have more photos or a photo with a ruler next to it, that helps a lot.</p>
+        <p style="margin:0 0 12px">${escapeHtml(
+          needsPhotoSpecificFollowUp
+            ? "If the scale is unclear, please include a ruler, coin, or another reference object in at least one photo."
+            : "If you have more photos or a photo with a ruler next to it, that helps a lot."
+        )}</p>
         <p style="margin:0 0 12px">You can just reply to this email with the details 👍</p>
         <p style="margin:0 0 12px">Once we have this, we’ll confirm the final quote and get things moving.</p>
         <p style="margin:0 0 12px;color:#475569">You can reply directly to this email with the details 👍</p>

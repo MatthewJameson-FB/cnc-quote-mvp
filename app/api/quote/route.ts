@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { defaultQuoteStatus } from "@/lib/quote-statuses";
 import { sendQuoteNotifications } from "@/lib/notifications";
 import { estimateQuote } from "@/lib/estimate-quote";
+import { assessPhotoRequest, type PhotoAssessmentResult } from "@/lib/photo-assessment";
 import {
   appendPreleadLearningLog,
   createPreleadConversionLearningLogRow,
@@ -134,6 +135,7 @@ function buildIntakeNotes({
   intakeValidationReason,
   partCandidate,
   estimate,
+  photoAssessment,
 }: {
   existingNotes: string;
   preleadId: string | null;
@@ -148,6 +150,7 @@ function buildIntakeNotes({
   intakeValidationReason: string | null;
   partCandidate: boolean;
   estimate: ReturnType<typeof estimateQuote>;
+  photoAssessment: PhotoAssessmentResult | null;
 }) {
   const sections = [
     existingNotes || null,
@@ -165,6 +168,15 @@ function buildIntakeNotes({
     description ? `description: ${description}` : null,
     filePath ? `file_url: ${filePath}` : null,
     photoPaths.length ? `photo_urls: ${photoPaths.join(", ")}` : null,
+    photoAssessment ? `photo_readiness: ${photoAssessment.photo_readiness}` : null,
+    photoAssessment ? `photo_assessment_confidence: ${photoAssessment.confidence}` : null,
+    photoAssessment?.missing_items.length
+      ? `photo_missing_items: ${photoAssessment.missing_items.join(" | ")}`
+      : null,
+    photoAssessment ? `cad_brief: ${photoAssessment.cad_brief}` : null,
+    photoAssessment?.customer_followup_questions.length
+      ? `photo_followup_questions: ${photoAssessment.customer_followup_questions.join(" | ")}`
+      : null,
     "--- estimate ---",
     estimateSummaryText(estimate),
   ].filter(Boolean);
@@ -289,6 +301,22 @@ export async function POST(req: Request) {
       )
     ).filter((value): value is string => Boolean(value));
 
+    const photoAssessment = hasPhotos
+      ? assessPhotoRequest({
+          photo_urls: photoUrls.length ? photoUrls : photoPaths,
+          measurements,
+          description,
+          material,
+          manufacturing_type: manufacturingType,
+        })
+      : null;
+
+    if (isDebugEnabled() && photoAssessment) {
+      console.log(
+        `[preleads:debug] photo_readiness=${photoAssessment.photo_readiness} photo_assessment_confidence=${photoAssessment.confidence} missing_items=${photoAssessment.missing_items.length}`
+      );
+    }
+
     const quote = {
       name: cleanString(formData.get("name")),
       email: cleanString(formData.get("email")),
@@ -308,6 +336,7 @@ export async function POST(req: Request) {
         intakeValidationReason,
         partCandidate,
         estimate,
+        photoAssessment,
       }),
       material,
       complexity: cleanString(formData.get("complexity")) || "medium",
@@ -408,6 +437,10 @@ export async function POST(req: Request) {
         measurements,
         description,
         cadRequired: partCandidate,
+        photoReadiness: photoAssessment?.photo_readiness,
+        photoAssessmentConfidence: photoAssessment?.confidence,
+        photoMissingItems: photoAssessment?.missing_items,
+        cadBrief: photoAssessment?.cad_brief,
         estimate,
         confirmationYesUrl: yesUrl ?? undefined,
         confirmationNoUrl: noUrl ?? undefined,
@@ -424,6 +457,7 @@ export async function POST(req: Request) {
       material,
       manufacturing_type: manufacturingType,
       routing_decision: routingDecision,
+      photo_readiness: photoAssessment?.photo_readiness ?? null,
       measurements_present: measurementsReady,
       description_present: descriptionReady,
       part_candidate: partCandidate,

@@ -81,6 +81,15 @@ function extractNoteValue(notes: string | null, key: string) {
   return lastMatch?.[1]?.trim() || null;
 }
 
+function extractNoteList(notes: string | null, key: string) {
+  const raw = extractNoteValue(notes, key);
+  if (!raw) return [];
+  return raw
+    .split("|")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function appendDecisionNote(existingNotes: string | null, decision: "yes" | "no", preleadId: string | null) {
   const lines = [
     existingNotes?.trim() || null,
@@ -229,6 +238,8 @@ export async function GET(request: Request) {
           const result = await sendChecklistEmail({
             to: refreshedQuote.email,
             quoteId: refreshedQuote.id,
+            photoReadiness: extractNoteValue(refreshedQuote.notes, "photo_readiness"),
+            missingItems: extractNoteList(refreshedQuote.notes, "photo_missing_items"),
           });
           if (result.sent) {
             console.log("Checklist email sent", {
