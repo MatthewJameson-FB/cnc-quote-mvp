@@ -64,7 +64,23 @@ type PreLeadRecord = {
   contacted_at: string | null;
 };
 
-function LeadCard({ lead }: { lead: PreLeadRecord }) {
+function extractNoteValue(notes: string | null, key: string) {
+  if (!notes) return null;
+
+  const matches = Array.from(notes.matchAll(new RegExp(`^${key}:\\s*(.+)$`, "gm")));
+  const lastMatch = matches.at(-1);
+  return lastMatch?.[1]?.trim() || null;
+}
+
+function LeadCard({
+  lead,
+  converted,
+  estimateAccepted,
+}: {
+  lead: PreLeadRecord;
+  converted: boolean;
+  estimateAccepted: boolean;
+}) {
   const status = (lead.status ?? "new") as PreLeadStatus;
 
   return (
@@ -73,6 +89,16 @@ function LeadCard({ lead }: { lead: PreLeadRecord }) {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <Badge status={status} />
+            {converted ? (
+              <span className="inline-flex rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-900 ring-1 ring-violet-200">
+                Converted
+              </span>
+            ) : null}
+            {estimateAccepted ? (
+              <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200">
+                Estimate accepted
+              </span>
+            ) : null}
             <span className="text-sm text-slate-500">{formatDate(lead.created_at)}</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900">{lead.title}</h2>
@@ -172,6 +198,25 @@ export default async function PreLeadsPage({
     contacted: (leads ?? []).filter((lead) => lead.status === "contacted").length,
   };
 
+  const { data: quotes } = await supabase.from("quotes").select("notes");
+  const convertedPreleadIds = new Set<string>();
+  const acceptedPreleadIds = new Set<string>();
+
+  for (const quote of quotes ?? []) {
+    const notes = (quote.notes as string | null) ?? null;
+    const preleadId = extractNoteValue(notes, "prelead_id");
+
+    if (!preleadId) {
+      continue;
+    }
+
+    convertedPreleadIds.add(preleadId);
+
+    if (extractNoteValue(notes, "estimate_accepted") === "true") {
+      acceptedPreleadIds.add(preleadId);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 p-6 sm:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -206,7 +251,12 @@ export default async function PreLeadsPage({
         ) : (
           <div className="grid gap-6">
             {(leads as PreLeadRecord[] | null ?? []).map((lead) => (
-              <LeadCard key={lead.id} lead={lead} />
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                converted={convertedPreleadIds.has(lead.id)}
+                estimateAccepted={acceptedPreleadIds.has(lead.id)}
+              />
             ))}
           </div>
         )}

@@ -4,6 +4,10 @@ import { defaultQuoteStatus } from "@/lib/quote-statuses";
 import { sendQuoteNotifications } from "@/lib/notifications";
 import { estimateQuote } from "@/lib/estimate-quote";
 import {
+  appendPreleadLearningLog,
+  createPreleadConversionLearningLogRow,
+} from "@/lib/prelead-learning-log";
+import {
   determineStage,
   inferManufacturingType,
   routeLead,
@@ -100,6 +104,7 @@ function estimateSummaryText(estimate: ReturnType<typeof estimateQuote>) {
 
 function buildIntakeNotes({
   existingNotes,
+  preleadId,
   stage,
   material,
   manufacturingType,
@@ -113,6 +118,7 @@ function buildIntakeNotes({
   estimate,
 }: {
   existingNotes: string;
+  preleadId: string | null;
   stage: string;
   material: IntakeMaterialPreference;
   manufacturingType: ManufacturingType;
@@ -128,6 +134,7 @@ function buildIntakeNotes({
   const sections = [
     existingNotes || null,
     "--- intake ---",
+    preleadId ? `prelead_id: ${preleadId}` : null,
     `stage: ${stage}`,
     `material: ${material}`,
     `manufacturing_type: ${manufacturingType}`,
@@ -156,6 +163,7 @@ export async function POST(req: Request) {
 
     const material = normalizeMaterial(cleanString(formData.get("material")));
     const notes = cleanString(formData.get("notes"));
+    const preleadId = cleanString(formData.get("prelead_id")) || null;
     const measurements = cleanString(formData.get("measurement") || formData.get("measurements"));
     const description = cleanString(formData.get("description"));
     const quantity = Number(formData.get("quantity")) || 1;
@@ -187,6 +195,9 @@ export async function POST(req: Request) {
       console.log(
         `[preleads:debug] query_used=manual_intake has_file=${hasFile ? "yes" : "no"} has_photos=${hasPhotos ? "yes" : "no"} stage=${stage} material=${material} manufacturing_type=${manufacturingType} routing_decision=${routingDecision} estimate=£${estimate.min_price}-£${estimate.max_price} confidence=${estimate.confidence} intake_validation_reason=${intakeValidationReason ?? "ok"}`
       );
+      if (preleadId) {
+        console.log(`[preleads:debug] linked_prelead_id=${preleadId}`);
+      }
       if (partCandidate) {
         console.log("CAD_REQUIRED");
       }
@@ -261,6 +272,7 @@ export async function POST(req: Request) {
       phone: cleanString(formData.get("phone")),
       notes: buildIntakeNotes({
         existingNotes: notes,
+        preleadId,
         stage,
         material,
         manufacturingType,
@@ -299,6 +311,7 @@ export async function POST(req: Request) {
     }
 
     const quoteId = String(insertedQuote?.id ?? "");
+    const estimateRange = `£${estimate.min_price}–£${estimate.max_price} ${estimate.currency}`;
     const baseUrl = getAppBaseUrl();
     const yesUrl = quoteId
       ? `${baseUrl}/api/confirm-estimate?id=${encodeURIComponent(quoteId)}&decision=yes`
@@ -311,6 +324,19 @@ export async function POST(req: Request) {
       console.log(
         `[preleads:debug] estimate_links_created=${yesUrl && noUrl ? "yes" : "no"} routing_decision=${routingDecision}`
       );
+    }
+
+    if (preleadId && quoteId) {
+      void appendPreleadLearningLog([
+        createPreleadConversionLearningLogRow({
+          preleadId,
+          quoteId,
+          estimateRange,
+          estimateAccepted: null,
+        }),
+      ]).catch((error) => {
+        console.warn("PRELEAD CONVERSION LEARNING LOG ERROR:", error);
+      });
     }
 
     if (quote.email) {
@@ -348,6 +374,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       quote_id: quoteId,
+      prelead_id: preleadId,
       stage,
       material,
       manufacturing_type: manufacturingType,

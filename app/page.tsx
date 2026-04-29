@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { calculateQuote, type Material, type Complexity } from "@/lib/pricing";
 import type { EstimateQuoteResult } from "@/lib/estimate-quote";
@@ -112,6 +113,7 @@ function UploadCard({
 }
 
 export default function Home() {
+  const searchParams = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -128,6 +130,7 @@ export default function Home() {
   const [quoteRef] = useState(
     () => `CNC-${String(Math.floor(Math.random() * 100000)).padStart(5, "0")}`
   );
+  const preleadId = searchParams.get("prelead_id")?.trim() ?? "";
 
   const hasFile = Boolean(file);
   const hasPhotos = photos.length > 0;
@@ -197,6 +200,9 @@ export default function Home() {
       formData.append("measurements", measurement);
       formData.append("description", description);
       formData.append("notes", "");
+      if (preleadId) {
+        formData.append("prelead_id", preleadId);
+      }
 
       if (file) {
         formData.append("file", file);

@@ -8,6 +8,7 @@ export type PreleadLearningLogRow = {
   created_at: string;
   source: string;
   query_used: string | null;
+  prelead_id: string | null;
   source_url: string;
   title: string;
   snippet: string;
@@ -32,6 +33,9 @@ export type PreleadLearningLogRow = {
   routing_decision: string | null;
   part_candidate: boolean;
   intake_validation_reason: string | null;
+  estimate_range: string | null;
+  estimate_accepted: boolean | null;
+  converted_to_quote: boolean;
   rejection_reason: string | null;
   inserted_to_pre_leads: boolean;
   human_label: HumanLabel | null;
@@ -65,4 +69,61 @@ export function createPreleadLearningLogId(sourceUrl: string, createdAt: string)
   const safeUrl = sourceUrl.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "candidate";
   const safeTime = createdAt.replace(/[^0-9]/g, "").slice(0, 14) || Date.now().toString();
   return `${safeTime}-${safeUrl}`;
+}
+
+export function createPreleadConversionLearningLogRow({
+  preleadId,
+  quoteId,
+  estimateRange,
+  estimateAccepted,
+  createdAt = new Date().toISOString(),
+}: {
+  preleadId: string;
+  quoteId: string;
+  estimateRange: string | null;
+  estimateAccepted: boolean | null;
+  createdAt?: string;
+}): PreleadLearningLogRow {
+  const accepted = estimateAccepted === true;
+
+  return {
+    id: createPreleadLearningLogId(`quote:${quoteId}`, createdAt),
+    created_at: createdAt,
+    source: "conversion_tracking",
+    query_used: null,
+    prelead_id: preleadId,
+    source_url: `quote:${quoteId}`,
+    title: accepted ? "Prelead estimate accepted" : "Prelead quote tracked",
+    snippet: accepted
+      ? `Estimate accepted for prelead ${preleadId}`
+      : `Quote created for prelead ${preleadId}`,
+    initial_score: 0,
+    location_signal: "unknown",
+    location_confidence: 0,
+    location_reasons: [],
+    has_file: false,
+    has_photos: false,
+    stage: null,
+    file_url: null,
+    photo_urls: [],
+    measurements: null,
+    measurements_present: false,
+    description: null,
+    classifier_enabled: false,
+    ai_is_lead: null,
+    ai_confidence: null,
+    ai_reason: null,
+    ai_manufacturing_type: null,
+    ai_problem_summary: null,
+    routing_decision: null,
+    part_candidate: false,
+    intake_validation_reason: null,
+    estimate_range: estimateRange,
+    estimate_accepted: estimateAccepted,
+    converted_to_quote: accepted,
+    rejection_reason: null,
+    inserted_to_pre_leads: false,
+    human_label: null,
+    human_notes: null,
+  };
 }

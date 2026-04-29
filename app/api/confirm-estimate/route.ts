@@ -1,4 +1,8 @@
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import {
+  appendPreleadLearningLog,
+  createPreleadConversionLearningLogRow,
+} from "@/lib/prelead-learning-log";
 
 export const dynamic = "force-dynamic";
 
@@ -68,12 +72,22 @@ function errorPage(message: string) {
   );
 }
 
-function appendDecisionNote(existingNotes: string | null, decision: "yes" | "no") {
+function extractNoteValue(notes: string | null, key: string) {
+  if (!notes) return null;
+
+  const matches = Array.from(notes.matchAll(new RegExp(`^${key}:\\s*(.+)$`, "gm")));
+  const lastMatch = matches.at(-1);
+  return lastMatch?.[1]?.trim() || null;
+}
+
+function appendDecisionNote(existingNotes: string | null, decision: "yes" | "no", preleadId: string | null) {
   const lines = [
     existingNotes?.trim() || null,
     "--- estimate confirmation ---",
     `decision: ${decision}`,
+    `estimate_accepted: ${decision === "yes" ? "true" : "false"}`,
     `timestamp: ${new Date().toISOString()}`,
+    decision === "yes" && preleadId ? "prelead_converted: true" : null,
     decision === "yes" ? "internal_status: ready_for_supplier" : "internal_status: estimate_declined",
   ].filter(Boolean);
 
@@ -122,7 +136,10 @@ export async function GET(request: Request) {
       });
     }
 
-    const updatedNotes = appendDecisionNote((quote.notes as string | null) ?? null, decision);
+    const existingNotes = (quote.notes as string | null) ?? null;
+    const preleadId = extractNoteValue(existingNotes, "prelead_id");
+    const estimateRange = extractNoteValue(existingNotes, "rough_estimate");
+    const updatedNotes = appendDecisionNote(existingNotes, decision, preleadId);
 
     const { error: updateError } = await supabase
       .from("quotes")
@@ -134,6 +151,22 @@ export async function GET(request: Request) {
     }
 
     console.log(`estimate_confirmation quote_id=${id} decision=${decision}`);
+    if (preleadId && decision === "yes") {
+      console.log(`prelead_converted: true prelead_id=${preleadId} quote_id=${id}`);
+    }
+
+    if (preleadId) {
+      void appendPreleadLearningLog([
+        createPreleadConversionLearningLogRow({
+          preleadId,
+          quoteId: id,
+          estimateRange,
+          estimateAccepted: decision === "yes",
+        }),
+      ]).catch((error) => {
+        console.warn("PRELEAD ESTIMATE LEARNING LOG ERROR:", error);
+      });
+    }
 
     return new Response(successPage(decision), {
       status: 200,
