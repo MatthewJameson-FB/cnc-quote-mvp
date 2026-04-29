@@ -41,14 +41,14 @@ function htmlPage(title: string, body: string) {
 </html>`;
 }
 
-function successPage(decision: "yes" | "no") {
+function successPage(decision: "yes" | "no", emailFollowUpDelayed = false) {
   if (decision === "yes") {
     return htmlPage(
       "Estimate confirmed",
       `
         <h1>Thanks — we’ll email you for the final details we need.</h1>
         <p>We’ve recorded that the rough estimate looks reasonable.</p>
-        <p class="muted">Next step: reply to our checklist email with the key dimensions, fit details, material and quantity so we can prepare an exact quote.</p>
+        <p class="muted">${emailFollowUpDelayed ? "Your estimate was accepted. We’ll follow up shortly." : "Next step: reply to our checklist email with the key dimensions, fit details, material and quantity so we can prepare an exact quote."}</p>
       `
     );
   }
@@ -200,6 +200,8 @@ export async function GET(request: Request) {
       });
     }
 
+    let emailFollowUpDelayed = false;
+
     if (decision === "yes") {
       const { data: refreshedQuote, error: fetchError } = await supabase
         .from("quotes")
@@ -217,21 +219,45 @@ export async function GET(request: Request) {
 
       if (!refreshedQuote.email) {
         console.error("CHECKLIST EMAIL MISSING EMAIL FOR QUOTE:", refreshedQuote.id);
+        emailFollowUpDelayed = true;
       } else {
         try {
+          console.log("About to send checklist email", {
+            quoteId: refreshedQuote.id,
+            recipientEmail: refreshedQuote.email,
+          });
           const result = await sendChecklistEmail({
             to: refreshedQuote.email,
             quoteId: refreshedQuote.id,
           });
           if (result.sent) {
-            console.log("Checklist email sent to:", refreshedQuote.email);
+            console.log("Checklist email sent", {
+              quoteId: refreshedQuote.id,
+              recipientEmail: refreshedQuote.email,
+              providerResponseId: result.providerId,
+            });
           } else {
-            console.error("Checklist email failed:", result);
+            emailFollowUpDelayed = true;
+            console.error("Checklist email failed", {
+              quoteId: refreshedQuote.id,
+              recipientEmail: refreshedQuote.email,
+              error: result.error,
+            });
           }
         } catch (emailError) {
-          console.error("Checklist email failed:", emailError);
+          emailFollowUpDelayed = true;
+          console.error("Checklist email failed", {
+            quoteId: refreshedQuote.id,
+            recipientEmail: refreshedQuote.email,
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
+
+      return new Response(successPage(decision, emailFollowUpDelayed), {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
     }
 
     return new Response(successPage(decision), {

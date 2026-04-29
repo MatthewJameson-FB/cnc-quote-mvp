@@ -85,7 +85,7 @@ async function sendResendEmail({
   const from = process.env.RESEND_FROM_EMAIL;
 
   if (!apiKey || !from || !to) {
-    return { sent: false, skipped: true };
+    return { sent: false, skipped: true, providerId: null, error: "Missing email config or recipient." };
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -107,10 +107,17 @@ async function sendResendEmail({
   if (!response.ok) {
     const body = await response.text();
     console.error("EMAIL ERROR:", body);
-    return { sent: false, skipped: false };
+    return { sent: false, skipped: false, providerId: null, error: body || `HTTP ${response.status}` };
   }
 
-  return { sent: true, skipped: false };
+  const payload = (await response.json().catch(() => null)) as { id?: string } | null;
+
+  return {
+    sent: true,
+    skipped: false,
+    providerId: payload?.id ?? null,
+    error: null,
+  };
 }
 
 function stageLabel(stage?: string) {
@@ -422,23 +429,46 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
 
 export async function sendChecklistEmail(details: ChecklistEmailDetails) {
   const quoteLine = `Quote reference: ${details.quoteId}`;
+  const hasApiKey = Boolean(process.env.RESEND_API_KEY?.trim());
+  const hasFromEmail = Boolean(process.env.RESEND_FROM_EMAIL?.trim());
+
+  console.log(
+    `Checklist email config check: RESEND_API_KEY present=${hasApiKey ? "yes" : "no"} RESEND_FROM_EMAIL present=${hasFromEmail ? "yes" : "no"}`
+  );
 
   const text = [
-    "Hi there,",
+    "Hi,",
     "",
-    "Thanks for confirming that the rough estimate looks reasonable.",
+    "Thanks for confirming — we can move this forward 👍",
     "",
-    "Before we prepare an exact quote, please reply with any final details you have:",
-    "- dimensions",
-    "- fit / function",
-    "- material",
-    "- quantity",
-    "- finish",
-    "- extra photos",
+    "To make sure the part is quoted accurately and built correctly, we just need a couple of quick details:",
+    "",
+    "1) Size / dimensions",
+    "- Any key measurements (mm is best)",
+    "(e.g. width, height, hole spacing)",
+    "",
+    "2) What it connects to",
+    "- What does the part fit into or attach to?",
+    "",
+    "3) Material",
+    "- Plastic / metal / not sure is fine",
+    "",
+    "4) Quantity",
+    "- Just 1, or multiple?",
+    "",
+    "5) Anything important",
+    "- Does it need to be strong, flexible, or a precise fit?",
+    "",
+    "If you have more photos or a photo with a ruler next to it, that helps a lot.",
+    "",
+    "You can just reply to this email with the details 👍",
+    "",
+    "Once we have this, we’ll confirm the final quote and get things moving.",
+    "",
+    "Thanks,",
+    "Flangie",
     "",
     quoteLine,
-    "",
-    "A simple email reply is fine.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -447,26 +477,28 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
     <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">
       <div style="max-width:640px;margin:0 auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
         <h2 style="margin:0 0 12px;font-size:28px">A few final details before we quote</h2>
-        <p style="margin:0 0 12px">Hi there,</p>
-        <p style="margin:0 0 12px">Thanks for confirming that the rough estimate looks reasonable.</p>
-        <p style="margin:0 0 12px">Before we prepare an exact quote, please reply with any final details you have:</p>
+        <p style="margin:0 0 12px">Hi,</p>
+        <p style="margin:0 0 12px">Thanks for confirming — we can move this forward 👍</p>
+        <p style="margin:0 0 12px">To make sure the part is quoted accurately and built correctly, we just need a couple of quick details:</p>
         <ul style="margin:0 0 16px 20px;padding:0;color:#334155">
-          <li>dimensions</li>
-          <li>fit / function</li>
-          <li>material</li>
-          <li>quantity</li>
-          <li>finish</li>
-          <li>extra photos</li>
+          <li><strong>Size / dimensions</strong><br />Any key measurements (mm is best)<br />(e.g. width, height, hole spacing)</li>
+          <li style="margin-top:8px"><strong>What it connects to</strong><br />What does the part fit into or attach to?</li>
+          <li style="margin-top:8px"><strong>Material</strong><br />Plastic / metal / not sure is fine</li>
+          <li style="margin-top:8px"><strong>Quantity</strong><br />Just 1, or multiple?</li>
+          <li style="margin-top:8px"><strong>Anything important</strong><br />Does it need to be strong, flexible, or a precise fit?</li>
         </ul>
+        <p style="margin:0 0 12px">If you have more photos or a photo with a ruler next to it, that helps a lot.</p>
+        <p style="margin:0 0 12px">You can just reply to this email with the details 👍</p>
+        <p style="margin:0 0 12px">Once we have this, we’ll confirm the final quote and get things moving.</p>
         <div style="padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#475569">${escapeHtml(quoteLine)}</div>
-        <p style="margin:16px 0 0;color:#64748b">A simple email reply is fine.</p>
+        <p style="margin:16px 0 0;color:#64748b">Thanks,<br />Flangie</p>
       </div>
     </div>
   `;
 
   return sendResendEmail({
     to: details.to,
-    subject: "A few final details before we quote your part",
+    subject: "Quick details to finalise your part 👍",
     text,
     html,
   });
