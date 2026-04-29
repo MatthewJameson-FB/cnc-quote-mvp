@@ -42,11 +42,9 @@ type IntroductionEmailDetails = {
   fileUrl?: string | null;
 };
 
-type FinalDetailsChecklistDetails = {
-  email: string;
-  name?: string;
-  material?: string | null;
-  quantity?: number | null;
+type ChecklistEmailDetails = {
+  to: string;
+  quoteId: string;
 };
 
 type PreleadSummaryItem = {
@@ -422,27 +420,23 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
   };
 }
 
-export async function sendFinalDetailsChecklistEmail(details: FinalDetailsChecklistDetails) {
-  const greetingName = details.name?.trim() || "there";
-  const materialLine = details.material ? `- material preference: ${details.material}` : null;
-  const quantityLine = details.quantity ? `- quantity: ${details.quantity}` : null;
+export async function sendChecklistEmail(details: ChecklistEmailDetails) {
+  const quoteLine = `Quote reference: ${details.quoteId}`;
 
   const text = [
-    `Hi ${greetingName},`,
+    "Hi there,",
     "",
     "Thanks for confirming that the rough estimate looks reasonable.",
     "",
-    "Before we send this for an exact quote, please reply with any final details you have:",
-    "- key dimensions in mm",
-    "- what the part connects to / how it is used",
-    "- critical fit areas",
-    "- material preference",
+    "Before we prepare an exact quote, please reply with any final details you have:",
+    "- dimensions",
+    "- fit / function",
+    "- material",
     "- quantity",
-    "- finish preference",
-    "- extra photos if needed",
+    "- finish",
+    "- extra photos",
     "",
-    materialLine,
-    quantityLine,
+    quoteLine,
     "",
     "A simple email reply is fine.",
   ]
@@ -453,32 +447,35 @@ export async function sendFinalDetailsChecklistEmail(details: FinalDetailsCheckl
     <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;line-height:1.6">
       <div style="max-width:640px;margin:0 auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
         <h2 style="margin:0 0 12px;font-size:28px">A few final details before we quote</h2>
-        <p style="margin:0 0 12px">Hi ${escapeHtml(greetingName)},</p>
+        <p style="margin:0 0 12px">Hi there,</p>
         <p style="margin:0 0 12px">Thanks for confirming that the rough estimate looks reasonable.</p>
-        <p style="margin:0 0 12px">Before we send this for an exact quote, please reply with any final details you have:</p>
+        <p style="margin:0 0 12px">Before we prepare an exact quote, please reply with any final details you have:</p>
         <ul style="margin:0 0 16px 20px;padding:0;color:#334155">
-          <li>key dimensions in mm</li>
-          <li>what the part connects to / how it is used</li>
-          <li>critical fit areas</li>
-          <li>material preference</li>
+          <li>dimensions</li>
+          <li>fit / function</li>
+          <li>material</li>
           <li>quantity</li>
-          <li>finish preference</li>
-          <li>extra photos if needed</li>
+          <li>finish</li>
+          <li>extra photos</li>
         </ul>
-        ${(materialLine || quantityLine) ? `<div style="padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#475569">
-          ${materialLine ? `<div>${escapeHtml(materialLine.replace(/^-\s*/, ""))}</div>` : ""}
-          ${quantityLine ? `<div>${escapeHtml(quantityLine.replace(/^-\s*/, ""))}</div>` : ""}
-        </div>` : ""}
+        <div style="padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#475569">${escapeHtml(quoteLine)}</div>
         <p style="margin:16px 0 0;color:#64748b">A simple email reply is fine.</p>
       </div>
     </div>
   `;
 
   return sendResendEmail({
-    to: details.email,
+    to: details.to,
     subject: "A few final details before we quote your part",
     text,
     html,
+  });
+}
+
+export async function sendFinalDetailsChecklistEmail(details: { email: string; quoteId?: string }) {
+  return sendChecklistEmail({
+    to: details.email,
+    quoteId: details.quoteId ?? "your request",
   });
 }
 

@@ -1,5 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
-import { sendFinalDetailsChecklistEmail } from "@/lib/notifications";
+import { sendChecklistEmail } from "@/lib/notifications";
 import {
   appendPreleadLearningLog,
   createPreleadConversionLearningLogRow,
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
     const supabase = createSupabaseAdminClient();
     const { data: quote, error } = await supabase
       .from("quotes")
-      .select("id, quote_ref, notes, email, name, material, quantity")
+      .select("id, quote_ref, notes")
       .eq("id", id)
       .maybeSingle();
 
@@ -187,17 +187,6 @@ export async function GET(request: Request) {
       console.log(`prelead_converted: true prelead_id=${preleadId} quote_id=${id}`);
     }
 
-    if (decision === "yes" && quote.email) {
-      void sendFinalDetailsChecklistEmail({
-        email: quote.email,
-        name: quote.name ?? undefined,
-        material: quote.material ?? undefined,
-        quantity: quote.quantity ?? undefined,
-      }).catch((emailError) => {
-        console.error("FINAL DETAILS CHECKLIST EMAIL ERROR:", emailError);
-      });
-    }
-
     if (preleadId) {
       void appendPreleadLearningLog([
         createPreleadConversionLearningLogRow({
@@ -209,6 +198,40 @@ export async function GET(request: Request) {
       ]).catch((error) => {
         console.warn("PRELEAD ESTIMATE LEARNING LOG ERROR:", error);
       });
+    }
+
+    if (decision === "yes") {
+      const { data: refreshedQuote, error: fetchError } = await supabase
+        .from("quotes")
+        .select("id, email, notes, quote_status")
+        .eq("id", id)
+        .single();
+
+      if (fetchError) {
+        console.error("CHECKLIST EMAIL QUOTE FETCH ERROR:", fetchError);
+        return new Response(errorPage("We updated your request, but could not prepare the follow-up email."), {
+          status: 500,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      }
+
+      if (!refreshedQuote.email) {
+        console.error("CHECKLIST EMAIL MISSING EMAIL FOR QUOTE:", refreshedQuote.id);
+      } else {
+        try {
+          const result = await sendChecklistEmail({
+            to: refreshedQuote.email,
+            quoteId: refreshedQuote.id,
+          });
+          if (result.sent) {
+            console.log("Checklist email sent to:", refreshedQuote.email);
+          } else {
+            console.error("Checklist email failed:", result);
+          }
+        } catch (emailError) {
+          console.error("Checklist email failed:", emailError);
+        }
+      }
     }
 
     return new Response(successPage(decision), {
