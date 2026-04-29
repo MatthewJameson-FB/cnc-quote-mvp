@@ -1,0 +1,149 @@
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+
+export const dynamic = "force-dynamic";
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function htmlPage(title: string, body: string) {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; background: #f8fafc; color: #0f172a; }
+      .wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+      .card { width: min(640px, 100%); background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
+      h1 { margin: 0 0 12px; font-size: 28px; }
+      p { margin: 0 0 10px; line-height: 1.6; }
+      .muted { color: #64748b; }
+      .error { color: #b91c1c; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">${body}</div>
+    </div>
+  </body>
+</html>`;
+}
+
+function successPage(decision: "yes" | "no") {
+  if (decision === "yes") {
+    return htmlPage(
+      "Estimate confirmed",
+      `
+        <h1>Thanks — we’ll now look for an exact supplier quote.</h1>
+        <p>We’ve recorded that the rough estimate looks reasonable.</p>
+        <p class="muted">Next step: we’ll review the request and try to place it with a suitable supplier.</p>
+      `
+    );
+  }
+
+  return htmlPage(
+    "Estimate declined",
+    `
+      <h1>No problem — if you had a different budget in mind, reply to the email and let us know.</h1>
+      <p>We’ve recorded that the rough estimate was higher than expected.</p>
+      <p class="muted">You can always come back later if you want us to revisit the request.</p>
+    `
+  );
+}
+
+function errorPage(message: string) {
+  return htmlPage(
+    "Unable to process estimate confirmation",
+    `
+      <h1>Unable to process estimate confirmation</h1>
+      <p class="error">${escapeHtml(message)}</p>
+    `
+  );
+}
+
+function appendDecisionNote(existingNotes: string | null, decision: "yes" | "no") {
+  const lines = [
+    existingNotes?.trim() || null,
+    "--- estimate confirmation ---",
+    `decision: ${decision}`,
+    `timestamp: ${new Date().toISOString()}`,
+    decision === "yes" ? "internal_status: ready_for_supplier" : "internal_status: estimate_declined",
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id")?.trim();
+    const decision = url.searchParams.get("decision")?.trim();
+
+    if (!id) {
+      return new Response(errorPage("Missing quote id."), {
+        status: 400,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (decision !== "yes" && decision !== "no") {
+      return new Response(errorPage("Invalid decision."), {
+        status: 400,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const { data: quote, error } = await supabase
+      .from("quotes")
+      .select("id, quote_ref, notes")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("CONFIRM ESTIMATE LOOKUP ERROR:", error);
+      return new Response(errorPage("We could not verify this request."), {
+        status: 500,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (!quote) {
+      return new Response(errorPage("This confirmation link is invalid or has expired."), {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    const updatedNotes = appendDecisionNote((quote.notes as string | null) ?? null, decision);
+
+    const { error: updateError } = await supabase
+      .from("quotes")
+      .update({ notes: updatedNotes })
+      .eq("id", id);
+
+    if (updateError) {
+      console.error("CONFIRM ESTIMATE UPDATE ERROR:", updateError);
+    }
+
+    console.log(`estimate_confirmation quote_id=${id} decision=${decision}`);
+
+    return new Response(successPage(decision), {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected error.";
+    return new Response(errorPage(message), {
+      status: 500,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+}

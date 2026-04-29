@@ -1,3 +1,5 @@
+import type { EstimateQuoteResult } from "@/lib/estimate-quote";
+
 type QuoteNotificationDetails = {
   name: string;
   email: string;
@@ -11,6 +13,19 @@ type QuoteNotificationDetails = {
   quoteLow: number;
   quoteHigh: number;
   quoteTotal: number;
+  stage?: string;
+  manufacturingType?: string;
+  routingDecision?: string;
+  hasFile?: boolean;
+  hasPhotos?: boolean;
+  fileUrls?: string[];
+  photoUrls?: string[];
+  measurements?: string;
+  description?: string;
+  cadRequired?: boolean;
+  estimate?: EstimateQuoteResult;
+  confirmationYesUrl?: string;
+  confirmationNoUrl?: string;
 };
 
 type IntroductionEmailDetails = {
@@ -112,6 +127,261 @@ function quoteSummary(details: QuoteNotificationDetails) {
     .join("\n");
 }
 
+function actionHint(details: QuoteNotificationDetails) {
+  if (details.routingDecision === "cad_required") {
+    return "Next step: review photos and prepare CAD recreation brief.";
+  }
+
+  if (details.routingDecision === "3d_print") {
+    return "Next step: review file and send for 3D print quote.";
+  }
+
+  if (details.routingDecision === "cnc") {
+    return "Next step: review file and send for CNC quote.";
+  }
+
+  return "Next step: review the request and decide the best production path.";
+}
+
+function renderDetailRow(label: string, value: string) {
+  return `
+    <tr>
+      <td style="padding:8px 0;color:#64748b;font-size:14px;width:42%;vertical-align:top">${escapeHtml(label)}</td>
+      <td style="padding:8px 0;color:#0f172a;font-size:14px;font-weight:600;vertical-align:top">${escapeHtml(value || "—")}</td>
+    </tr>
+  `;
+}
+
+function renderLinkList(urls: string[] | undefined, emptyLabel = "None") {
+  if (!urls?.length) {
+    return `<span style="color:#64748b">${escapeHtml(emptyLabel)}</span>`;
+  }
+
+  return urls
+    .map(
+      (url, index) =>
+        `<div style="margin:0 0 8px"><a href="${escapeHtml(url)}" style="display:inline-block;color:#2563eb;text-decoration:none;font-weight:600">Open upload ${index + 1}</a></div>`
+    )
+    .join("");
+}
+
+function renderActionButtons(yesUrl?: string, noUrl?: string) {
+  if (!yesUrl && !noUrl) return "";
+
+  return `
+    <div style="margin-top:16px">
+      ${yesUrl ? `<a href="${escapeHtml(yesUrl)}" style="display:inline-block;margin:0 12px 12px 0;padding:12px 18px;border-radius:10px;background:#0f766e;color:#fff;text-decoration:none;font-weight:700">Yes, proceed to exact quote</a>` : ""}
+      ${noUrl ? `<a href="${escapeHtml(noUrl)}" style="display:inline-block;margin:0 12px 12px 0;padding:12px 18px;border-radius:10px;background:#fff;color:#334155;text-decoration:none;font-weight:700;border:1px solid #cbd5e1">This is higher than expected</a>` : ""}
+    </div>
+  `;
+}
+
+function renderEstimateSummary(details: QuoteNotificationDetails) {
+  if (!details.estimate) return "—";
+
+  const cad = details.estimate.breakdown.cad
+    ? `CAD £${details.estimate.breakdown.cad[0]}–£${details.estimate.breakdown.cad[1]}`
+    : null;
+  const manufacturing = details.estimate.breakdown.manufacturing
+    ? `Manufacturing £${details.estimate.breakdown.manufacturing[0]}–£${details.estimate.breakdown.manufacturing[1]}`
+    : null;
+
+  return [
+    `£${details.estimate.min_price}–£${details.estimate.max_price} ${details.estimate.currency}`,
+    cad,
+    manufacturing,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function customerQuoteEmailText(details: QuoteNotificationDetails) {
+  const estimateLine = details.estimate
+    ? `Rough estimate: £${details.estimate.min_price}–£${details.estimate.max_price} ${details.estimate.currency}`
+    : null;
+  const confidenceLine = details.estimate ? `Confidence: ${details.estimate.confidence}` : null;
+
+  return [
+    "We received your custom part request",
+    "",
+    `Name: ${details.name}`,
+    `Email: ${details.email}`,
+    `Material: ${details.material}`,
+    `Quantity: ${details.quantity}`,
+    estimateLine,
+    confidenceLine,
+    details.estimate?.disclaimer ?? null,
+    "",
+    "If this estimate looks reasonable, confirm and we’ll try to get an exact quote from a suitable supplier.",
+    details.confirmationYesUrl ? `Yes, proceed: ${details.confirmationYesUrl}` : null,
+    details.confirmationNoUrl ? `Higher than expected: ${details.confirmationNoUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function customerQuoteEmailHtml(details: QuoteNotificationDetails) {
+  const estimateCard = details.estimate
+    ? `
+      <div style="margin:16px 0;padding:20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
+        <h3 style="margin:0 0 10px;font-size:18px">Rough estimate</h3>
+        <div style="font-size:28px;font-weight:800;color:#0f172a">£${details.estimate.min_price}–£${details.estimate.max_price}</div>
+        <div style="margin-top:8px;color:#475569;font-size:14px">Confidence: ${escapeHtml(details.estimate.confidence)}</div>
+        <div style="margin-top:10px;color:#64748b;font-size:14px">${escapeHtml(details.estimate.disclaimer)}</div>
+        <div style="margin-top:10px;color:#334155;font-size:14px">${escapeHtml(renderEstimateSummary(details))}</div>
+      </div>
+    `
+    : "";
+
+  return `
+    <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;line-height:1.5">
+      <div style="max-width:640px;margin:0 auto">
+        <div style="padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
+          <h2 style="margin:0 0 12px;font-size:28px">We received your custom part request</h2>
+          <p style="margin:0 0 12px;color:#475569">Thanks — we’ll review this manually and get back to you.</p>
+          ${estimateCard}
+          <p style="margin:0 0 12px;color:#334155">If this estimate looks reasonable, confirm and we’ll try to get an exact quote from a suitable supplier.</p>
+          ${renderActionButtons(details.confirmationYesUrl, details.confirmationNoUrl)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function internalQuoteEmailText(details: QuoteNotificationDetails) {
+  return [
+    "New custom part request",
+    "",
+    `Name: ${details.name}`,
+    `Email: ${details.email}`,
+    `Phone: ${details.phone || "—"}`,
+    `Company: ${details.companyName || "—"}`,
+    `Material: ${details.material}`,
+    `Quantity: ${details.quantity}`,
+    `Stage: ${details.stage || "—"}`,
+    `Manufacturing type: ${details.manufacturingType || "—"}`,
+    `Routing decision: ${details.routingDecision || "—"}`,
+    "",
+    `Rough estimate: ${renderEstimateSummary(details)}`,
+    `Confidence: ${details.estimate?.confidence || "—"}`,
+    details.estimate?.disclaimer ?? null,
+    "",
+    `File uploaded: ${details.hasFile ? "yes" : "no"}`,
+    `Photos uploaded: ${details.hasPhotos ? "yes" : "no"}`,
+    ...(details.fileUrls?.length ? details.fileUrls.map((url, index) => `File link ${index + 1}: ${url}`) : []),
+    ...(details.photoUrls?.length ? details.photoUrls.map((url, index) => `Photo link ${index + 1}: ${url}`) : []),
+    ...(details.hasPhotos
+      ? [
+          "",
+          `Measurement: ${details.measurements || "—"}`,
+          `Description: ${details.description || "—"}`,
+          `CAD required: ${details.cadRequired ? "yes" : "no"}`,
+        ]
+      : []),
+    "",
+    `Notes: ${details.notes || "—"}`,
+    "",
+    actionHint(details),
+    details.confirmationYesUrl ? `Accept estimate: ${details.confirmationYesUrl}` : null,
+    details.confirmationNoUrl ? `Reject estimate: ${details.confirmationNoUrl}` : null,
+    details.confirmationYesUrl ? "If accepted, this becomes ready_for_supplier." : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
+  const bg = "#f8fafc";
+  const card = "#ffffff";
+  const border = "#e2e8f0";
+
+  return `
+    <div style="margin:0;padding:24px;background:${bg};font-family:Arial,sans-serif;color:#0f172a;line-height:1.5">
+      <div style="max-width:640px;margin:0 auto">
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <div style="display:inline-block;margin:0 0 12px;padding:6px 10px;border-radius:999px;background:#e0f2fe;color:#0c4a6e;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Internal review</div>
+          <h1 style="margin:0 0 8px;font-size:28px;line-height:1.2">New custom part request</h1>
+          <p style="margin:0;color:#475569;font-size:15px">A new intake has been submitted and is ready for review.</p>
+        </div>
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 16px;font-size:18px">Customer</h2>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+            ${renderDetailRow("Name", details.name)}
+            ${renderDetailRow("Email", details.email)}
+            ${renderDetailRow("Phone", details.phone || "—")}
+            ${renderDetailRow("Company", details.companyName || "—")}
+          </table>
+        </div>
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 16px;font-size:18px">Material / quantity</h2>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+            ${renderDetailRow("Material", details.material)}
+            ${renderDetailRow("Quantity", String(details.quantity))}
+          </table>
+        </div>
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 16px;font-size:18px">Stage / routing</h2>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+            ${renderDetailRow("Stage", details.stage || "—")}
+            ${renderDetailRow("Manufacturing type", details.manufacturingType || "—")}
+            ${renderDetailRow("Routing decision", details.routingDecision || "—")}
+          </table>
+        </div>
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 16px;font-size:18px">Rough estimate</h2>
+          <div style="font-size:28px;font-weight:800;color:#0f172a">${escapeHtml(
+            details.estimate ? `£${details.estimate.min_price}–£${details.estimate.max_price}` : "—"
+          )}</div>
+          <div style="margin-top:8px;color:#475569;font-size:14px">Confidence: ${escapeHtml(details.estimate?.confidence || "—")}</div>
+          <div style="margin-top:10px;color:#334155;font-size:14px">${escapeHtml(renderEstimateSummary(details))}</div>
+          <div style="margin-top:10px;color:#64748b;font-size:14px">${escapeHtml(details.estimate?.disclaimer || "")}</div>
+        </div>
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 16px;font-size:18px">Uploads</h2>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+            ${renderDetailRow("File uploaded", details.hasFile ? "Yes" : "No")}
+            ${renderDetailRow("Photos uploaded", details.hasPhotos ? "Yes" : "No")}
+          </table>
+          ${details.fileUrls?.length || details.photoUrls?.length ? `
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid ${border}">
+              ${details.fileUrls?.length ? `<div style="margin:0 0 12px"><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">File links</div>${renderLinkList(details.fileUrls)}</div>` : ""}
+              ${details.photoUrls?.length ? `<div><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Photo links</div>${renderLinkList(details.photoUrls)}</div>` : ""}
+            </div>
+          ` : ""}
+        </div>
+
+        ${details.hasPhotos ? `
+          <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+            <h2 style="margin:0 0 16px;font-size:18px">Photo / CAD section</h2>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
+              ${renderDetailRow("Measurement", details.measurements || "—")}
+              ${renderDetailRow("Description", details.description || "—")}
+              ${renderDetailRow("CAD required", details.cadRequired ? "Yes" : "No")}
+            </table>
+          </div>
+        ` : ""}
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 12px;font-size:18px">Notes</h2>
+          <div style="padding:16px;background:#f8fafc;border:1px solid ${border};border-radius:12px;white-space:pre-wrap;color:#334155;font-size:14px">${escapeHtml(details.notes || "No notes provided.")}</div>
+        </div>
+
+        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
+          <h2 style="margin:0 0 12px;font-size:18px">Next action</h2>
+          <div style="display:inline-block;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;color:#1d4ed8;font-weight:600">${escapeHtml(actionHint(details))}</div>
+          <p style="margin:12px 0 0;color:#475569;font-size:14px">If accepted, this becomes ready_for_supplier.</p>
+          ${renderActionButtons(details.confirmationYesUrl, details.confirmationNoUrl)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export async function sendQuoteNotifications(details: QuoteNotificationDetails) {
   const internalEmail = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
   const summary = quoteSummary(details);
@@ -119,15 +389,9 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
   const tasks = [
     sendResendEmail({
       to: details.email,
-      subject: "We received your CNC quote request",
-      text: `${summary}\n\nThanks — we’ll review this manually and get back to you.`,
-      html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
-          <h2 style="margin:0 0 12px">We received your CNC quote request</h2>
-          <p style="margin:0 0 12px">Thanks — we’ll review this manually and get back to you.</p>
-          <pre style="white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px">${escapeHtml(summary)}</pre>
-        </div>
-      `,
+      subject: "We received your custom part request",
+      text: customerQuoteEmailText(details),
+      html: customerQuoteEmailHtml(details),
     }),
   ];
 
@@ -135,14 +399,9 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
     tasks.push(
       sendResendEmail({
         to: internalEmail,
-        subject: `New CNC quote request from ${details.name}`,
-        text: summary,
-        html: `
-          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
-            <h2 style="margin:0 0 12px">New CNC quote request</h2>
-            <pre style="white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px">${escapeHtml(summary)}</pre>
-          </div>
-        `,
+        subject: "New custom part request",
+        text: internalQuoteEmailText(details),
+        html: internalQuoteEmailHtml(details),
       })
     );
   }
@@ -258,31 +517,27 @@ export async function sendPreleadSummaryEmail(preleads: PreleadSummaryItem[]) {
           <td style="padding:12px;border-top:1px solid #e5e7eb;vertical-align:top">
             <div style="font-weight:700">[${lead.lead_score}] ${escapeHtml(lead.title)}</div>
             <div style="margin:4px 0;color:#6b7280">${escapeHtml(lead.source)}</div>
-            <div style="margin:4px 0"><a href="${escapeHtml(lead.source_url)}" style="color:#2563eb">Open source</a></div>
+            <div style="margin:4px 0"><a href="${escapeHtml(lead.source_url)}">${escapeHtml(lead.source_url)}</a></div>
             <div style="margin:8px 0">${escapeHtml(lead.snippet)}</div>
-            <div style="margin:8px 0;padding:10px;background:#f8fafc;border-radius:8px"><strong>Suggested reply:</strong> ${escapeHtml(lead.suggested_reply)}</div>
-            <div style="margin:8px 0;color:#6b7280;font-size:13px">Keywords: ${escapeHtml(lead.detected_keywords.join(", ") || "—")}</div>
-            <div style="margin:4px 0;color:#6b7280;font-size:13px">Materials: ${escapeHtml(lead.detected_materials.join(", ") || "—")}</div>
+            <div style="margin:8px 0;color:#374151"><strong>Suggested reply:</strong> ${escapeHtml(lead.suggested_reply)}</div>
+            <div style="color:#6b7280;font-size:13px">Keywords: ${escapeHtml(lead.detected_keywords.join(", ") || "—")}</div>
+            <div style="color:#6b7280;font-size:13px">Materials: ${escapeHtml(lead.detected_materials.join(", ") || "—")}</div>
           </td>
         </tr>
       `
     )
     .join("");
 
-  await sendResendEmail({
-    to,
-    subject,
-    text,
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111;max-width:760px;margin:0 auto">
-        <h2 style="margin:0 0 12px">Flangie pre-leads</h2>
-        <p style="margin:0 0 16px;color:#6b7280">Manual review only — do not auto-contact anyone.</p>
-        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
-          ${htmlRows || `<tr><td style="padding:16px">No qualifying leads found.</td></tr>`}
-        </table>
-      </div>
-    `,
-  });
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111;max-width:720px;margin:0 auto">
+      <h2 style="margin:0 0 12px">Flangie pre-leads: ${top.length} high-signal leads found</h2>
+      <p style="margin:0 0 16px;color:#6b7280">Manual review only — do not auto-contact anyone.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+        ${htmlRows}
+      </table>
+    </div>
+  `;
 
+  await sendResendEmail({ to, subject, text, html });
   return true;
 }

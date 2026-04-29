@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-28T21:08:05.260Z",
+  "updatedAt": "2026-04-29T12:07:27.295Z",
   "entries": {
     "memory:memory/2026-04-25.md:1:4": {
       "key": "memory:memory/2026-04-25.md:1:4",
@@ -40,19 +40,23 @@
       "endLine": 6,
       "source": "memory",
       "snippet": "# 2026-04-28 - User is working on the Flangie CNC lead-generation system in a Next.js App Router + Supabase app. - User prefers very low-token progress updates: one short line with done/next/blocker/need-from-you style. - Prelead pipeline work has focused on SerpAPI discovery, stricter lead qualification, and later an AI classifier layer to reject irrelevant posts. - The user asked to continue implementing the AI classifier for prelead filtering.",
-      "recallCount": 2,
+      "recallCount": 5,
       "dailyCount": 0,
       "groundedCount": 0,
-      "totalScore": 0.8371645629405975,
+      "totalScore": 1.9685445964336394,
       "maxScore": 0.42559575140476225,
       "firstRecalledAt": "2026-04-28T20:01:46.687Z",
-      "lastRecalledAt": "2026-04-28T21:08:05.260Z",
+      "lastRecalledAt": "2026-04-29T10:56:23.878Z",
       "queryHashes": [
         "0ad5bda047ad",
-        "4f74bed8e320"
+        "4f74bed8e320",
+        "30e254bd5c77",
+        "0b8874e41427",
+        "cf5f1301406d"
       ],
       "recallDays": [
-        "2026-04-28"
+        "2026-04-28",
+        "2026-04-29"
       ],
       "conceptTags": [
         "router",
@@ -94,6 +98,38 @@
         "pre-leads",
         "search/media",
         "flangie"
+      ]
+    },
+    "memory:memory/2026-04-29.md:1:9": {
+      "key": "memory:memory/2026-04-29.md:1:9",
+      "path": "memory/2026-04-29.md",
+      "startLine": 1,
+      "endLine": 9,
+      "source": "memory",
+      "snippet": "# 2026-04-29 - User prefers very low-token progress updates in the form: done / next / blocker / need-from-you. - Heartbeat handling in this workspace is special-case: when explicitly instructed for heartbeat polls, reply exactly `HEARTBEAT_OK` only. - Project focus today: broaden the prelead funnel from CNC-only toward \"someone needs something made,\" especially 3D printing / make-this / replacement-part / STL-CAD intent, while still allowing CNC/fabrication leads. - Do not change unless explicitly needed: cron route, Supabase schema, adapters structure, or admin UI. - Keep hard rejects for supplier ads, jobs/careers, politics/news, tutorials/courses, and furniture/mattress/home decor; unkn",
+      "recallCount": 2,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.7492032498121262,
+      "maxScore": 0.3921577364206314,
+      "firstRecalledAt": "2026-04-29T10:56:23.878Z",
+      "lastRecalledAt": "2026-04-29T12:07:27.295Z",
+      "queryHashes": [
+        "cf5f1301406d",
+        "b4665abbd1c8"
+      ],
+      "recallDays": [
+        "2026-04-29"
+      ],
+      "conceptTags": [
+        "low-token",
+        "need-from-you",
+        "special-case",
+        "heartbeat-ok",
+        "cnc-only",
+        "make-this",
+        "replacement-part",
+        "stl-cad"
       ]
     }
   }

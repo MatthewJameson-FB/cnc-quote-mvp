@@ -10,9 +10,17 @@ export type AiPreleadCandidateInput = {
   source_url: string;
   title: string;
   snippet: string;
+  query_used?: string | null;
+  has_file?: boolean;
+  has_photos?: boolean;
+  stage?: "needs_file" | "needs_print" | "needs_both" | "unknown";
+  measurements?: string | null;
+  description?: string | null;
   detected_keywords: string[];
   detected_materials: string[];
   location_signal: "uk" | "unknown" | "outside_uk";
+  location_confidence: number;
+  location_reasons: string[];
   lead_score: number;
   suggested_reply: string;
 };
@@ -22,6 +30,8 @@ export type AiPreleadClassification = {
   confidence: number;
   reason: string;
   problem_type: AiProblemType;
+  manufacturing_type: "3d_print" | "cnc" | "fabrication" | "unknown";
+  problem_summary: string;
   suggested_reply: string;
 };
 
@@ -82,17 +92,28 @@ export function getAiPreleadClassifierConfig(): AiClassifierConfig {
 
 function buildPrompt(candidate: AiPreleadCandidateInput) {
   return [
-    "Decide whether this is a real machining/fabrication buyer-problem lead.",
-    "Approve only if there is evidence of a physical mechanical part/problem and plausible machining/fabrication relevance and user need.",
+    "Decide whether this is a real buyer-problem lead for something that needs to be made.",
+    "Bias toward approving genuine 3D-printing, CNC, or fabrication opportunities where someone likely needs a physical part made, replaced, prototyped, repaired, or reverse-engineered.",
+    "Prefer manufacturing_type=3d_print when the part seems plastic, small/simple, hobby/DIY, or the post mentions STL/CAD/model files, printers, resin, PLA, ABS, or printing directly.",
+    "Prefer manufacturing_type=cnc when the context suggests metal, precision, tolerances, machining, automotive, engineering, aluminium, steel, stainless, milling, turning, or lathe work.",
+    "Use manufacturing_type=fabrication for broader make/build/fabricate jobs that are not clearly CNC or 3D print.",
     "Reject mattresses, beds, sofas, furniture, clothing, upholstery, home decor, print-on-demand, service-provider ads, supplier SEO pages, companies saying they offer services, job/career/salary posts, machine-purchase advice, tutorials/courses/training, generic supplier lists, generic business advice, and generic custom-product posts.",
     "Return strict JSON only.",
     "",
     `Title: ${candidate.title}`,
     `Snippet: ${candidate.snippet}`,
     `Source URL: ${candidate.source_url}`,
+    `Query used: ${candidate.query_used ?? "unknown"}`,
+    `Has file: ${candidate.has_file ? "yes" : "no"}`,
+    `Has photos: ${candidate.has_photos ? "yes" : "no"}`,
+    `Stage: ${candidate.stage ?? "unknown"}`,
+    `Measurements: ${candidate.measurements ?? "none"}`,
+    `Description: ${candidate.description ?? "none"}`,
     `Detected keywords: ${candidate.detected_keywords.join(", ") || "none"}`,
     `Detected materials: ${candidate.detected_materials.join(", ") || "none"}`,
     `Location signal: ${candidate.location_signal}`,
+    `Location confidence: ${candidate.location_confidence}`,
+    `Location reasons: ${candidate.location_reasons.join(", ") || "none"}`,
     `Lead score: ${candidate.lead_score}`,
   ].join("\n");
 }
@@ -127,9 +148,14 @@ async function classifyOneCandidate(
                 type: "string",
                 enum: ["replacement_part", "prototype", "custom_part", "repair", "fabrication", "unknown"],
               },
+              manufacturing_type: {
+                type: "string",
+                enum: ["3d_print", "cnc", "fabrication", "unknown"],
+              },
+              problem_summary: { type: "string", minLength: 1, maxLength: 220 },
               suggested_reply: { type: "string", minLength: 1, maxLength: 400 },
             },
-            required: ["is_lead", "confidence", "reason", "problem_type", "suggested_reply"],
+            required: ["is_lead", "confidence", "reason", "problem_type", "manufacturing_type", "problem_summary", "suggested_reply"],
           },
         },
       },
@@ -137,7 +163,7 @@ async function classifyOneCandidate(
         {
           role: "system",
           content:
-            "You classify machining/fabrication leads for Flangie. Approve only if the post likely involves someone needing a physical mechanical part made, modified, replaced, prototyped, fabricated, or sourced. Be strict. Keep suggested replies helpful, specific, non-salesy, and position Flangie as helping connect them with a suitable UK machining partner rather than being the machine shop.",
+            "You classify manufacturing leads for Flangie. Approve only if the post likely involves someone needing a real physical part made, printed, modified, replaced, prototyped, fabricated, or sourced. Be strict about buyer intent, but do not require CNC specifically. Favor 3D-print leads when the part is simple/plastic/hobby-oriented or the post mentions STL/CAD/model files or printers. Keep suggested replies helpful, specific, non-salesy, and position Flangie as helping connect them with a suitable UK manufacturing partner rather than being the machine shop.",
         },
         {
           role: "user",
@@ -183,8 +209,10 @@ async function classifyOneCandidate(
     typeof classification?.is_lead !== "boolean" ||
     typeof classification?.confidence !== "number" ||
     typeof classification?.reason !== "string" ||
+    typeof classification?.problem_summary !== "string" ||
     typeof classification?.suggested_reply !== "string" ||
-    !["replacement_part", "prototype", "custom_part", "repair", "fabrication", "unknown"].includes(classification?.problem_type)
+    !["replacement_part", "prototype", "custom_part", "repair", "fabrication", "unknown"].includes(classification?.problem_type) ||
+    !["3d_print", "cnc", "fabrication", "unknown"].includes(classification?.manufacturing_type)
   ) {
     throw new AiParseError(`Classifier JSON did not match expected schema: ${text.slice(0, 400)}`);
   }
@@ -193,6 +221,7 @@ async function classifyOneCandidate(
     ...classification,
     confidence: Math.max(0, Math.min(1, Number(classification.confidence.toFixed(2)))),
     reason: classification.reason.trim(),
+    problem_summary: classification.problem_summary.trim(),
     suggested_reply: classification.suggested_reply.trim(),
   };
 }
@@ -229,6 +258,8 @@ export async function classifyPreleadCandidatesWithAI(
             confidence: 0,
             reason: `Malformed AI output: ${error.message}`,
             problem_type: "unknown",
+            manufacturing_type: "unknown",
+            problem_summary: candidate.title,
             suggested_reply: candidate.suggested_reply,
           },
         });
@@ -240,12 +271,14 @@ export async function classifyPreleadCandidatesWithAI(
       results.push({
         candidate,
         classification: {
-          is_lead: false,
-          confidence: 0,
-          reason: `AI request failed: ${message}`,
-          problem_type: "unknown",
-          suggested_reply: candidate.suggested_reply,
-        },
+            is_lead: false,
+            confidence: 0,
+            reason: `AI request failed: ${message}`,
+            problem_type: "unknown",
+            manufacturing_type: "unknown",
+            problem_summary: candidate.title,
+            suggested_reply: candidate.suggested_reply,
+          },
       });
     }
   }
