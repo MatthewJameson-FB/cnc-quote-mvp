@@ -21,6 +21,19 @@ export default function SeoLandingPage({
           </Link>
         </header>
 
+        <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
+          <h2 className="text-2xl font-bold">Why this exists</h2>
+          <p className="text-slate-600">
+            Replacement parts go missing, get discontinued, or stop being sold all the time. We help when the broken bit is small, physical, and worth recreating instead of replacing the whole item.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Car trim clips and interior fittings</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Caravan latches, hinges and brackets</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Plastic covers, knobs and mounts</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Tool handles and housings</p>
+          </div>
+        </section>
+
         <section className="grid gap-4 md:grid-cols-3">
           {examples.map((example) => (
             <div key={example} className="rounded-3xl border bg-white p-5 shadow-sm">
@@ -31,13 +44,37 @@ export default function SeoLandingPage({
         </section>
 
         <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
+          <h2 className="text-2xl font-bold">When to use Flangie</h2>
+          <ul className="space-y-2 text-slate-600">
+            <li>• You can’t find the part anywhere</li>
+            <li>• The manufacturer doesn’t sell it</li>
+            <li>• The item still works but one part is broken</li>
+            <li>• Replacing the whole item would be expensive</li>
+          </ul>
+        </section>
+
+        <section className="rounded-3xl border border-rose-200 bg-white p-6 shadow-sm space-y-4">
+          <h2 className="text-2xl font-bold">Not suitable for</h2>
+          <ul className="space-y-2 text-slate-600">
+            <li>• Electronics or circuit boards</li>
+            <li>• Motors or internal mechanisms</li>
+            <li>• Safety-critical components</li>
+          </ul>
+        </section>
+
+        <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-2xl font-bold">Can’t find the part?</h2>
           <p className="text-slate-600">
             Upload a photo and tell us what it needs to fit or do. We’ll recreate the part and work out the best way to get it made.
           </p>
-          <Link href="/submit-part" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            Upload your broken part
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              Home
+            </Link>
+            <Link href="/submit-part" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              Upload your broken part
+            </Link>
+          </div>
         </section>
       </div>
     </main>

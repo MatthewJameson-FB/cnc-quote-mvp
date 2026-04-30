@@ -5,7 +5,6 @@ import type { FormEvent } from 'react'
 
 export default function SubmitPartForm() {
   const [image, setImage] = useState<File | null>(null)
-  const [imageUrl, setImageUrl] = useState('')
   const [description, setDescription] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -23,7 +22,6 @@ export default function SubmitPartForm() {
       formData.append('description', description)
       formData.append('email', email)
       if (image) formData.append('image', image)
-      if (imageUrl.trim()) formData.append('image_url', imageUrl.trim())
 
       const response = await fetch('/api/submit-part', {
         method: 'POST',
@@ -36,9 +34,8 @@ export default function SubmitPartForm() {
         throw new Error(payload?.error || 'Unable to submit part request.')
       }
 
-      setMessage('We’ll take a look and get back to you')
+      setMessage('Thanks — we’ll take a look and get back to you.')
       setImage(null)
-      setImageUrl('')
       setDescription('')
       setEmail('')
     } catch (err) {
@@ -60,15 +57,6 @@ export default function SubmitPartForm() {
         />
       </label>
       <label className="grid gap-2 text-sm font-medium text-slate-700">
-        Or image URL
-        <input
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://..."
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900"
-        />
-      </label>
-      <label className="grid gap-2 text-sm font-medium text-slate-700">
         Description
         <textarea
           value={description}
@@ -76,6 +64,7 @@ export default function SubmitPartForm() {
           rows={5}
           className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900"
           placeholder="What is the part, what broke, and what does it need to do?"
+          required
         />
       </label>
       <label className="grid gap-2 text-sm font-medium text-slate-700">
@@ -86,6 +75,7 @@ export default function SubmitPartForm() {
           onChange={(e) => setEmail(e.target.value)}
           className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900"
           placeholder="you@example.com"
+          required
         />
       </label>
       {error ? <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}

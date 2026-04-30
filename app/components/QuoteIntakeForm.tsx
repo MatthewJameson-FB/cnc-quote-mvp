@@ -257,6 +257,45 @@ export default function QuoteIntakeForm() {
               </Link>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h2 className="text-lg font-semibold text-white">Common parts we help recreate</h2>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                  <li>Car interior trim clips</li>
+                  <li>Caravan latches and fittings</li>
+                  <li>Broken plastic brackets</li>
+                  <li>Missing covers and knobs</li>
+                  <li>Tool handles and housings</li>
+                </ul>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h2 className="text-lg font-semibold text-white">When this works best</h2>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                  <li>You can’t find the part anywhere</li>
+                  <li>The manufacturer doesn’t sell it</li>
+                  <li>The item still works but one part is broken</li>
+                  <li>Replacing the whole item would be expensive</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-5">
+              <h2 className="text-lg font-semibold text-white">Not suitable for</h2>
+              <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-300 sm:grid-cols-3">
+                <li>Electronics or circuit boards</li>
+                <li>Motors or internal mechanisms</li>
+                <li>Safety-critical components</li>
+              </ul>
+            </div>
+
+            <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-5">
+              <a href="/cant-find-replacement-part" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Can’t find replacement part</a>
+              <a href="/replacement-plastic-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Plastic parts</a>
+              <a href="/custom-replacement-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Custom parts</a>
+              <a href="/replacement-car-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Car parts</a>
+              <a href="/replacement-caravan-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Caravan parts</a>
+            </div>
+
             <ul className="space-y-3 text-base text-slate-200">
               <li className="flex items-start gap-3">
                 <span className="mt-1 text-cyan-300">✓</span>
