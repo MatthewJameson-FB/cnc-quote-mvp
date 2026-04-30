@@ -36,7 +36,7 @@ export default function AdminSidebar() {
   }
 
   return (
-    <aside className="w-[230px] shrink-0 border-r border-slate-200 bg-white p-4">
+    <aside className="flex h-full w-full flex-col border-r border-slate-200 bg-white p-4">
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Admin</p>
         <p className="mt-1 text-lg font-bold text-slate-900">Flangie</p>

@@ -312,7 +312,7 @@ export default async function PreLeadsPage({
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 sm:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto w-full max-w-7xl space-y-6">
         <header className="rounded-3xl border bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Internal admin</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Pre-leads review</h1>
