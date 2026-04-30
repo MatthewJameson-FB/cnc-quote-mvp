@@ -761,12 +761,20 @@ export default async function AdminPage() {
           </form>
         </header>
 
-        <a
-          href="/internal-admin/pre-leads"
-          className="inline-flex rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-700"
-        >
-          Review pre-leads
-        </a>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="/internal-admin/pre-leads"
+            className="inline-flex rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-700"
+          >
+            Review pre-leads
+          </a>
+          <a
+            href="/Admin/discovery-groups"
+            className="inline-flex rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Discovery Groups
+          </a>
+        </div>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard label="Total leads" value={String(totalLeads)} />

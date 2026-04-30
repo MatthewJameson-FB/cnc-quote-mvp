@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createSupabaseAdminClient, getSupabaseAdminEnvStatus } from "@/lib/supabase-admin";
 import { sendPreleadSummaryEmail } from "@/lib/notifications";
+import { formatThreadContextSummary, summarizeThreadContext, type ThreadContextSummary } from "@/lib/prelead-thread-context";
 import { buildEnabledPreleadAdapters } from "@/lib/prelead-adapters";
 import type { RawPreleadCandidate } from "@/lib/prelead-adapters/types";
 import {
@@ -35,8 +36,14 @@ export type Prelead = {
   location_confidence: number;
   location_reasons: string[];
   lead_score: number;
+  value_tier: ValueTier;
+  value_score: number;
+  value_reason: string;
   suggested_reply: string;
+  should_reply: boolean;
   created_at: string;
+  thread_context_summary?: ThreadContextSummary | null;
+  manual_notes?: string | null;
   has_file?: boolean;
   has_photos?: boolean;
   stage?: LeadStage;
@@ -49,6 +56,8 @@ export type Prelead = {
   part_candidate?: boolean;
   intake_validation_reason?: string | null;
 };
+
+export type ValueTier = "low" | "medium" | "high";
 
 type LeadStage = "needs_file" | "needs_print" | "needs_both" | "unknown";
 
@@ -164,6 +173,7 @@ const REDDIT_TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token";
 const REDDIT_API_BASE = "https://oauth.reddit.com";
 
 let redditTokenCache: RedditTokenCacheEntry | null = null;
+const redditThreadContextCache = new Map<string, { summary: ThreadContextSummary | null; used: boolean; reason: string | null }>();
 
 const ukPatterns = [
   /\bUK\b/i,
@@ -244,9 +254,104 @@ const threeDPrintOnlyPatterns = [
 ];
 const freeBudgetPatterns = [/\bfree\b/i, /\bno budget\b/i, /\bzero budget\b/i, /\bcheap as possible\b/i, /\bfor free\b/i, /\bdonate\b/i];
 const buyerProblemBoostPatterns = [/\bbroken\b/i, /\blost\b/i, /\bmissing\b/i, /\breplacement\b/i, /\bdiscontinued\b/i];
-const realWorldObjectBoostPatterns = [/\bcar\b/i, /\bvehicle\b/i, /\bappliance\b/i, /\bmachine\b/i, /\bwindow\b/i, /\bsofa\b/i];
+const realWorldObjectBoostPatterns = [/\bcar\b/i, /\bvehicle\b/i, /\bappliance\b/i, /\bmachine\b/i, /\bwindow\b/i, /\bfurniture\b/i];
 const urgencyFrustrationBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\banywhere\b/i, /\bwhat do i do\b/i];
+const explicitIntentBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\bhow do i fix\b/i, /\blooking for\b/i, /\bwhere can i get\b/i, /\bwho can make\b/i];
+const stlOnlyReplySuppressionPatterns = [
+  /\blooking for (?:an? )?(?:stl|cad|file)\b/i,
+  /\bneed (?:an? )?(?:stl|cad|file)\b/i,
+  /\bwhere can (?:i|we) get (?:an? )?(?:stl|cad|file)\b/i,
+];
 const curiosityRejectPatterns = [/\bjust curious\b/i, /\bwondering if\b/i, /\bfor fun\b/i, /\bpractice\b/i];
+const nonManufacturableRepairPatterns = [
+  /\bwashing machine\b/i,
+  /\bwasher\b/i,
+  /\binternal drum\b/i,
+  /\bmotor\b/i,
+  /\bengine\b/i,
+  /\belectronics\b/i,
+  /\bsensor\b/i,
+  /\bcircuit\b/i,
+  /\bpcb\b/i,
+];
+const manufacturablePartExceptionPatterns = [
+  /\bknob\b/i,
+  /\bhandle\b/i,
+  /\bclip\b/i,
+  /\bbracket\b/i,
+  /\bcasing\b/i,
+  /\bhousing\b/i,
+  /\bcover\b/i,
+  /\blid\b/i,
+  /\bdial\b/i,
+  /\btrim\b/i,
+  /\blatch\b/i,
+  /\bhinge\b/i,
+  /\bpanel\b/i,
+  /\bmount\b/i,
+];
+const applianceExteriorPartPatterns = [/\bappliance\b/i, /\bhandle\b/i, /\bknob\b/i, /\btrim\b/i, /\bcover\b/i, /\blid\b/i, /\bdial\b/i];
+const highValueObjectPatterns = [
+  /\bcaravan\b/i,
+  /\bmotorhome\b/i,
+  /\bcampervan\b/i,
+  /\bclassic car\b/i,
+  /\bcar interior\b/i,
+  /\bcar trim\b/i,
+  /\bvan\b/i,
+  /\bboat\b/i,
+  /\bmachinery\b/i,
+  /\bgarden machinery\b/i,
+  /\bpower tool\b/i,
+  /\bworkshop tool\b/i,
+  /\bgym equipment\b/i,
+  /\boffice chair\b/i,
+  /\bdesigner furniture\b/i,
+  /\bdiscontinued furniture\b/i,
+  /\bappliance exterior\b/i,
+  /\bappliance .*\b(handle|knob|trim|cover|lid|dial)\b/i,
+];
+const unavailablePartPatterns = [
+  /\bcan(?:'|’)t find this part\b/i,
+  /\bcannot find replacement\b/i,
+  /\bmanufacturer does(?:n| not)['’]?t sell it\b/i,
+  /\bdiscontinued\b/i,
+  /\bobsolete\b/i,
+  /\bout of stock everywhere\b/i,
+  /\bno spare parts available\b/i,
+  /\bdoes anyone know where to get this\b/i,
+  /\bcan(?:'|’)t find replacement\b/i,
+];
+const usageBlockingPatterns = [
+  /\bneed this to use it\b/i,
+  /\bcan(?:'|’)t use it without this\b/i,
+  /\bwon(?:'|’)t close\b/i,
+  /\bwon(?:'|’)t latch\b/i,
+  /\bwon(?:'|’)t stay attached\b/i,
+  /\bbroke off\b/i,
+  /\bsnapped off\b/i,
+  /\bmissing piece\b/i,
+];
+const lowValueObjectPatterns = [
+  /\bcheap item\b/i,
+  /\bkettle\b/i,
+  /\btoaster\b/i,
+  /\bremote\b/i,
+  /\btoy\b/i,
+  /\bpurely cosmetic\b/i,
+  /\bstill works fine\b/i,
+  /\bnot urgent\b/i,
+];
+const vagueSystemFailurePatterns = [
+  /\bwashing machine internal fault\b/i,
+  /\bnot spinning\b/i,
+  /\bnot draining\b/i,
+  /\bnot heating\b/i,
+  /\bstopped working\b/i,
+  /\belectrical fault\b/i,
+  /\bboard issue\b/i,
+  /\bmotor issue\b/i,
+];
 const photoHintPatterns = [
   /\bphoto(?:s)?\b/i,
   /\bpicture(?:s)?\b/i,
@@ -280,12 +385,16 @@ type PreAiHardRejectReason =
   | "tutorial_course"
   | "machine_purchase"
   | "business_advice"
+  | "non_manufacturable"
+  | "outside_uk_strong"
+  | "low_quality_signal"
   | "curiosity_practice";
 
 type FinalRejectionReason =
   | "ai_confidence_too_low"
   | "missing_problem_signal"
   | "outside_uk"
+  | "outside_uk_strong"
   | "duplicate"
   | "hard_reject";
 
@@ -299,6 +408,12 @@ type PreleadIntent = {
   need_signals: string[];
   negative_signals: string[];
   confidence: number;
+};
+
+type ValueAssessment = {
+  value_tier: ValueTier;
+  value_score: number;
+  value_reason: string;
 };
 
 const THREE_D_PRINT_SIGNALS = [
@@ -589,6 +704,138 @@ function summarizeProblemSignals(intent: PreleadIntent) {
   }
 
   return priority[0] ?? "custom machined part";
+}
+
+function hasStrictLeadQualitySignal(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
+  const text = getCandidateText(lead);
+  const hasStrongProblemSignal = hasAnyPattern(text, buyerProblemBoostPatterns);
+  const hasRealWorldObjectSignal = hasAnyPattern(text, realWorldObjectBoostPatterns);
+  const hasExplicitIntentSignal = hasAnyPattern(text, explicitIntentBoostPatterns) || hasDirectRequestNeedSignal(intent);
+
+  return hasStrongProblemSignal && (hasRealWorldObjectSignal || hasExplicitIntentSignal);
+}
+
+function looksLikeNonManufacturableRepairJob(lead: Pick<Prelead, "title" | "snippet">) {
+  const text = getCandidateText(lead);
+  const hasHardRejectSignal = nonManufacturableRepairPatterns.some((pattern) => pattern.test(text));
+  const hasManufacturableException = manufacturablePartExceptionPatterns.some((pattern) => pattern.test(text));
+  const looksLikeApplianceExteriorPart = applianceExteriorPartPatterns.filter((pattern) => pattern.test(text)).length >= 2;
+  const stillLooksInternalOrElectrical = [
+    /\binternal\b/i,
+    /\belectrical\b/i,
+    /\belectronics\b/i,
+    /\bsensor\b/i,
+    /\bcircuit\b/i,
+    /\bpcb\b/i,
+    /\bdrain\b/i,
+    /\bspin(?:ning)?\b/i,
+    /\bheat(?:ing)?\b/i,
+  ].some((pattern) => pattern.test(text));
+
+  if (!hasHardRejectSignal) {
+    return false;
+  }
+
+  if ((hasManufacturableException || looksLikeApplianceExteriorPart) && !stillLooksInternalOrElectrical) {
+    return false;
+  }
+
+  return true;
+}
+
+function classifyValueTier(score: number): ValueTier {
+  if (score >= 6) return "high";
+  if (score >= 3) return "medium";
+  return "low";
+}
+
+function computeValueAssessment(lead: Pick<Prelead, "title" | "snippet" | "location_signal" | "location_confidence">, intent: PreleadIntent): ValueAssessment {
+  const text = getCandidateText(lead);
+  let value_score = 0;
+  const reasons: string[] = [];
+
+  if (hasAnyPattern(text, highValueObjectPatterns)) {
+    value_score += 3;
+    reasons.push("expensive object");
+  }
+
+  if (hasAnyPattern(text, unavailablePartPatterns)) {
+    value_score += 3;
+    reasons.push("unavailable/discontinued");
+  }
+
+  if (hasAnyPattern(text, usageBlockingPatterns)) {
+    value_score += 2;
+    reasons.push("blocks usage");
+  }
+
+  if (manufacturablePartExceptionPatterns.some((pattern) => pattern.test(text)) || intent.physical_part_signals.length > 0) {
+    value_score += 2;
+    reasons.push("specific part");
+  }
+
+  if (hasAnyPattern(text, vagueSystemFailurePatterns)) {
+    value_score -= 3;
+    reasons.push("vague failure");
+  }
+
+  if (looksLikeNonManufacturableRepairJob(lead)) {
+    value_score -= 3;
+    reasons.push("internal/electrical");
+  }
+
+  if (hasAnyPattern(text, lowValueObjectPatterns)) {
+    value_score -= 2;
+    reasons.push("cheap/low-value object");
+  }
+
+  if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) {
+    value_score -= 5;
+    reasons.push("strong outside-UK");
+  }
+
+  return {
+    value_tier: classifyValueTier(value_score),
+    value_score,
+    value_reason: reasons.length > 0 ? reasons.join("; ") : "baseline",
+  };
+}
+
+function valueTierRank(tier: ValueTier) {
+  if (tier === "high") return 2;
+  if (tier === "medium") return 1;
+  return 0;
+}
+
+function comparePreleadPriority(a: Prelead, b: Prelead) {
+  const valueDifference = valueTierRank(b.value_tier) - valueTierRank(a.value_tier);
+  if (valueDifference !== 0) return valueDifference;
+  const replyDifference = Number(b.should_reply) - Number(a.should_reply);
+  if (replyDifference !== 0) return replyDifference;
+  const createdDifference = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  if (createdDifference !== 0) return createdDifference;
+  return b.lead_score - a.lead_score;
+}
+
+function looksLikeStlOnlyRequest(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
+  const text = getCandidateText(lead);
+  return (
+    intent.three_d_print_signals.length > 0 &&
+    intent.file_signals.length > 0 &&
+    !hasStrongBuyerRequestShape(lead, intent) &&
+    stlOnlyReplySuppressionPatterns.some((pattern) => pattern.test(text))
+  );
+}
+
+function computeShouldReply(lead: Omit<Prelead, "suggested_reply">, intent: PreleadIntent, classification?: Pick<AiPreleadClassification, "confidence">) {
+  if (lead.thread_context_summary?.already_solved) return false;
+  if (looksLikeStlOnlyRequest(lead, intent)) return false;
+  if (intent.intent_type !== "buyer_problem") return false;
+  if (classification && classification.confidence < 0.7) return false;
+  if (!hasStrictLeadQualitySignal(lead, intent)) return false;
+  if (lead.lead_score < 8) return false;
+
+  return true;
 }
 
 function classifyPreleadIntent(candidate: { title: string; snippet: string; source?: string; source_url?: string }): PreleadIntent {
@@ -947,10 +1194,16 @@ function enrichLeadIntake(prelead: Omit<Prelead, "suggested_reply">, intent: Pre
     part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
     lead_score: prelead.lead_score - evidencePenalty,
     intake_validation_reason: validation.reason,
+    should_reply: prelead.should_reply,
   } satisfies Omit<Prelead, "suggested_reply">;
 }
 
-function applyAiClassificationToLead(lead: Prelead, classification: Pick<AiPreleadClassification, "manufacturing_type" | "problem_summary" | "suggested_reply">) {
+function applyAiClassificationToLead(
+  lead: Prelead,
+  classification: Pick<AiPreleadClassification, "manufacturing_type" | "problem_summary" | "suggested_reply" | "value_tier" | "value_score" | "value_reason">,
+  shouldReply: boolean,
+  problemSummary: string
+) {
   const manufacturingType = classification.manufacturing_type ?? lead.manufacturing_type ?? "unknown";
   const routingDecision = routeLead({ stage: lead.stage, manufacturing_type: manufacturingType });
 
@@ -958,7 +1211,11 @@ function applyAiClassificationToLead(lead: Prelead, classification: Pick<AiPrele
     ...lead,
     manufacturing_type: manufacturingType,
     description: classification.problem_summary || lead.description,
-    suggested_reply: classification.suggested_reply || lead.suggested_reply,
+    value_tier: classification.value_tier ?? lead.value_tier,
+    value_score: classification.value_score ?? lead.value_score,
+    value_reason: classification.value_reason || lead.value_reason,
+    should_reply: shouldReply,
+    suggested_reply: shouldReply ? buildSuggestedReply({ ...lead, should_reply: shouldReply }, classification.problem_summary || problemSummary) : "",
     routing_decision: routingDecision,
     part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
   } satisfies Prelead;
@@ -1013,7 +1270,11 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
     location_confidence: location.location_confidence,
     location_reasons: location.location_reasons,
     lead_score: 0,
+    value_tier: "low",
+    value_score: 0,
+    value_reason: "baseline",
     suggested_reply: "",
+    should_reply: false,
     created_at: new Date(0).toISOString(),
   } satisfies Prelead;
 
@@ -1025,6 +1286,9 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (location.location_signal === "uk") score += Math.round(4 + location.location_confidence * 6);
   if (location.location_signal === "outside_uk") score -= Math.round(8 + location.location_confidence * 10);
   if (location.location_signal === "unknown") score += Math.round(location.location_confidence * 2);
+  if (hasAnyPattern(text, buyerProblemBoostPatterns) && !hasAnyPattern(text, realWorldObjectBoostPatterns) && !hasAnyPattern(text, explicitIntentBoostPatterns)) {
+    score -= 12;
+  }
   score += Math.min(4, analysis.machining_signals.length * 1.5);
   if (analysis.three_d_print_signals.length > 0) score += 5;
   if (analysis.make_intent_signals.length > 0) score += 5;
@@ -1220,6 +1484,172 @@ function redditJsonUrl(url: string) {
   }
 }
 
+function redditCommentsJsonUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (!isRedditUrl(parsed.toString())) {
+      return null;
+    }
+
+    parsed.protocol = "https:";
+    parsed.hostname = "oauth.reddit.com";
+    parsed.pathname = parsed.pathname.replace(/\/+$/u, "").replace(/\.json$/i, "") + ".json";
+    parsed.searchParams.set("raw_json", "1");
+    parsed.searchParams.set("limit", "3");
+    parsed.searchParams.set("depth", "1");
+    parsed.searchParams.set("sort", "top");
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function truncateThreadContextComment(text: string) {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length > 200 ? `${compact.slice(0, 197).trimEnd()}…` : compact;
+}
+
+function extractRedditCommentBodies(payload: unknown) {
+  const bodies: string[] = [];
+
+  const collectChild = (child: { data?: { body?: unknown; score?: unknown } } | null | undefined) => {
+    const body = child?.data?.body;
+    if (typeof body !== "string") return;
+
+    const compact = truncateThreadContextComment(body);
+    if (!compact || compact === "[removed]" || compact === "[deleted]") return;
+    bodies.push(compact);
+  };
+
+  if (Array.isArray(payload)) {
+    const commentsListing = payload[1] as { data?: { children?: Array<{ data?: { body?: unknown } }> } } | undefined;
+    const children = commentsListing?.data?.children ?? [];
+    for (const child of children.slice(0, 3)) {
+      collectChild(child);
+    }
+    return bodies;
+  }
+
+  if (payload && typeof payload === "object") {
+    const typed = payload as { data?: { children?: Array<{ data?: { body?: unknown } }> } };
+    const children = typed.data?.children ?? [];
+    for (const child of children.slice(0, 3)) {
+      collectChild(child);
+    }
+  }
+
+  return bodies;
+}
+
+async function loadStoredThreadContextSummaries(sourceUrls: string[]) {
+  const uniqueUrls = [...new Set(sourceUrls.filter((url) => isRedditUrl(url)))];
+  if (uniqueUrls.length === 0) {
+    return new Map<string, ThreadContextSummary | null>();
+  }
+
+  try {
+    const envStatus = getSupabaseAdminEnvStatus();
+    if (!envStatus.urlPresent || !envStatus.serviceRoleKeyPresent) {
+      return new Map<string, ThreadContextSummary | null>();
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("pre_leads")
+      .select("source_url, thread_context_summary")
+      .in("source_url", uniqueUrls);
+
+    if (error) {
+      throw error;
+    }
+
+    const map = new Map<string, ThreadContextSummary | null>();
+    for (const row of data ?? []) {
+      const sourceUrl = typeof row.source_url === "string" ? row.source_url : null;
+      if (!sourceUrl) continue;
+      map.set(sourceUrl, (row.thread_context_summary as ThreadContextSummary | null | undefined) ?? null);
+    }
+
+    return map;
+  } catch {
+    return new Map<string, ThreadContextSummary | null>();
+  }
+}
+
+async function fetchRedditThreadContext(sourceUrl: string, logger: Logger) {
+  const cached = redditThreadContextCache.get(sourceUrl);
+  if (cached) {
+    return cached;
+  }
+
+  if (!hasRedditAuth()) {
+    const result = { summary: null as ThreadContextSummary | null, used: false, reason: "reddit auth unavailable" };
+    redditThreadContextCache.set(sourceUrl, result);
+    return result;
+  }
+
+  const commentsUrl = redditCommentsJsonUrl(sourceUrl);
+  if (!commentsUrl) {
+    const result = { summary: null as ThreadContextSummary | null, used: false, reason: "not a reddit thread url" };
+    redditThreadContextCache.set(sourceUrl, result);
+    return result;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.PRELEAD_TIMEOUT_MS ?? 15000));
+
+  try {
+    const redditToken = await getRedditAccessToken(logger);
+    if (!redditToken) {
+      const result = { summary: null as ThreadContextSummary | null, used: false, reason: "unable to get reddit oauth token" };
+      redditThreadContextCache.set(sourceUrl, result);
+      return result;
+    }
+
+    const response = await fetch(commentsUrl, {
+      signal: controller.signal,
+      headers: {
+        authorization: `Bearer ${redditToken}`,
+        "user-agent": process.env.REDDIT_USER_AGENT?.trim() ?? "FlangiePreleadFinder/1.0 (+manual review only)",
+        accept: "application/json,text/plain,*/*",
+      },
+      redirect: "follow",
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      const result = {
+        summary: null as ThreadContextSummary | null,
+        used: false,
+        reason: `HTTP ${response.status}${text ? ` - ${text.slice(0, 160)}` : ""}`,
+      };
+      redditThreadContextCache.set(sourceUrl, result);
+      return result;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const comments = extractRedditCommentBodies(payload);
+
+    if (comments.length === 0) {
+      const result = { summary: null as ThreadContextSummary | null, used: false, reason: "no usable top comments" };
+      redditThreadContextCache.set(sourceUrl, result);
+      return result;
+    }
+
+    const summary = summarizeThreadContext(comments.join(" "));
+    const result = { summary, used: true, reason: null };
+    redditThreadContextCache.set(sourceUrl, result);
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const result = { summary: null as ThreadContextSummary | null, used: false, reason: message };
+    redditThreadContextCache.set(sourceUrl, result);
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function loadSources(logger: Logger): Promise<SourceEntry[]> {
   const envSources = process.env.PRELEAD_SOURCES ? parsePreleadSourcesInput(process.env.PRELEAD_SOURCES) : [];
   const sourcesFromEnv = envSources.map(parseSourceEntry).filter(Boolean) as SourceEntry[];
@@ -1256,18 +1686,66 @@ async function loadSources(logger: Logger): Promise<SourceEntry[]> {
   return merged;
 }
 
+function buildBaseSuggestedReply(prelead: Omit<Prelead, "suggested_reply" | "should_reply">, problemSummary: string) {
+  const intro = prelead.detected_keywords.includes("UK mention") ? "Hi —" : "Hey —";
+  const tinyPartHook = prelead.detected_keywords.includes("3d print intent")
+    ? "classic tiny-part energy"
+    : "classic missing-part chaos";
+  const problemLine = problemSummary ? `on the ${problemSummary} side` : "";
+
+  return `${intro} ${tinyPartHook}${problemLine ? ` ${problemLine}` : ""}. If you’ve got a file, photos, or a rough measurement, that’s enough to start.`.replace(/\s+/g, " ").trim();
+}
+
 function buildSuggestedReply(prelead: Omit<Prelead, "suggested_reply">, problemSummary: string) {
-  const intro = prelead.detected_keywords.includes("UK mention") ? "Hi —" : "Hello —";
-  const materialNote = prelead.detected_materials.length ? ` I noticed ${prelead.detected_materials.join(", ")} in the mix.` : "";
-  const printingNote = prelead.detected_keywords.includes("3d print intent")
-    ? " This may be a strong 3D-printing fit rather than a full machining job."
+  const context = prelead.thread_context_summary ?? null;
+
+  if (!prelead.should_reply || context?.already_solved) {
+    return "";
+  }
+
+  const intro = prelead.detected_keywords.includes("UK mention") ? "Hi —" : "Hey —";
+  const tinyPartHook = prelead.detected_keywords.includes("3d print intent")
+    ? "classic tiny-part energy"
+    : "classic missing-part chaos";
+  const problemLine = problemSummary ? `on the ${problemSummary} side` : "";
+  const repairLine = context?.suggested_repair
+    ? "If repair is on the table, that may be the quickest route;"
     : "";
+  const stlLine = context?.mentions_stl || prelead.has_file
+    ? "If you’ve already got a file, that’s the easy lane."
+    : "If you’ve only got photos and one rough measurement, that’s still enough to start.";
+  const measurementLine = context?.mentions_measurements || prelead.measurements ? "" : "A rough measurement plus a couple of photos would do the trick.";
+  const unsolvedLine = context?.still_unsolved ? "Sounds like the thread is still open, so worth a nudge." : "";
 
   return [
-    `${intro} this looks like a real make-to-order part need rather than an off-the-shelf purchase.${materialNote}${printingNote}`,
-    `If you have a sketch, photo, STL/CAD file, material preference, rough quantity, and any size or tolerance notes for the ${problemSummary}, I can help point you toward a suitable UK manufacturing partner.`,
-    "If it's just an idea so far, that's fine too — a rough outline is enough to start.",
-  ].join(" ");
+    `${intro} ${tinyPartHook}${problemLine ? ` ${problemLine}` : ""} 😅 ${repairLine} ${stlLine}`.trim(),
+    measurementLine,
+    unsolvedLine,
+    `If you want to get it made, this is exactly the sort of thing Flangie is good at helping with: https://www.flangie.co.uk/`,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildManualSuggestedReply(prelead: Omit<Prelead, "suggested_reply">, problemSummary: string) {
+  const intro = "Hey —";
+  const problemLine = problemSummary ? `on the ${problemSummary} side` : "";
+  const photosLine = prelead.has_photos ? "If the photos already show the part clearly, that’s a great start." : "If you can add a couple of photos, that helps a lot.";
+  const measurementLine = prelead.measurements ? "" : "One rough measurement would make it much easier to sanity-check.";
+
+  return [
+    `${intro} this looks like one of those annoying-to-find parts${problemLine ? ` ${problemLine}` : ""}.`,
+    photosLine,
+    measurementLine,
+    "If useful, I’ve been working on a small tool for exactly this sort of thing.",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+\./g, ".")
+    .trim();
 }
 
 function fromPlainText(
@@ -1276,7 +1754,8 @@ function fromPlainText(
   title: string,
   url: string,
   createdAt: string,
-  author: string | null
+  author: string | null,
+  threadContextSummary: ThreadContextSummary | null = null
 ): Prelead {
   const combined = `${title} ${text}`;
   const intent = classifyPreleadIntent({ source: source.source, source_url: url, title, snippet: text });
@@ -1289,6 +1768,7 @@ function fromPlainText(
   ]);
   const detectedMaterials = detectMaterials(combined);
   const leadScore = calculateLeadScore(combined, location, intent);
+  const valueAssessment = computeValueAssessment({ title, snippet: text, location_signal: location.location_signal, location_confidence: location.location_confidence }, intent);
   const snippet = getSnippet(text, ["print", "stl", "cad", "step", "dxf", "drawing", "prototype", "replacement", "quote", "machin", "cnc", "machinist"]);
 
   const prelead = enrichLeadIntake({
@@ -1303,12 +1783,83 @@ function fromPlainText(
     location_confidence: location.location_confidence,
     location_reasons: location.location_reasons,
     lead_score: leadScore,
+    value_tier: valueAssessment.value_tier,
+    value_score: valueAssessment.value_score,
+    value_reason: valueAssessment.value_reason,
     created_at: createdAt,
+    should_reply: false,
+    thread_context_summary: threadContextSummary,
   }, intent);
 
   return {
     ...prelead,
-    suggested_reply: buildSuggestedReply(prelead, summarizeProblemSignals(intent)),
+    suggested_reply: buildBaseSuggestedReply(prelead, summarizeProblemSignals(intent)),
+  };
+}
+
+export type ManualPreleadInput = {
+  source: "facebook" | "instagram" | "other";
+  post_url: string;
+  post_text: string;
+  notes?: string;
+};
+
+export function buildManualPrelead(input: ManualPreleadInput): Prelead {
+  const createdAt = new Date().toISOString();
+  const source = `${input.source}/manual`;
+  const combinedText = input.post_text.trim();
+  const title = getSnippet(input.post_text, ["replace", "broken", "missing", "need", "help", "part", "made"])
+    .slice(0, 120)
+    .trim() || "Manual lead capture";
+  const intent = classifyPreleadIntent({ source, source_url: input.post_url, title, snippet: combinedText });
+  const location = inferLocationSignal({ title, snippet: combinedText, source_url: input.post_url });
+  const detectedKeywords = uniq([
+    ...detectKeywords(`${title} ${combinedText}`, intent),
+    `intent:${intent.intent_type}`,
+    `intent_confidence:${intent.confidence.toFixed(2)}`,
+    `problem_summary:${summarizeProblemSignals(intent)}`,
+  ]);
+  const detectedMaterials = detectMaterials(`${title} ${combinedText}`);
+  const leadScore = calculateLeadScore(`${title} ${combinedText}`, location, intent);
+  const valueAssessment = computeValueAssessment({ title, snippet: combinedText, location_signal: location.location_signal, location_confidence: location.location_confidence }, intent);
+  const stage = determineStage(Boolean(input.post_text.match(fileUrlPattern)), inferHasPhotos(combinedText, extractPhotoUrls(combinedText)));
+  const manufacturingType = inferManufacturingType(intent, detectedMaterials, `${title} ${combinedText}`);
+  const routingDecision = routeLead({ stage, manufacturing_type: manufacturingType });
+  const prelead = enrichLeadIntake(
+    {
+      source,
+      source_url: input.post_url,
+      source_author: null,
+      title,
+      snippet: getSnippet(combinedText, ["replace", "broken", "missing", "need", "help", "part", "made"]),
+      detected_keywords: detectedKeywords,
+      detected_materials: detectedMaterials,
+      location_signal: location.location_signal,
+      location_confidence: location.location_confidence,
+      location_reasons: location.location_reasons,
+      lead_score: leadScore,
+      value_tier: valueAssessment.value_tier,
+      value_score: valueAssessment.value_score,
+      value_reason: valueAssessment.value_reason,
+      created_at: createdAt,
+      should_reply: false,
+      thread_context_summary: null,
+      manual_notes: input.notes?.trim() || null,
+      stage,
+      manufacturing_type: manufacturingType,
+    },
+    intent
+  );
+
+  const shouldReply = computeShouldReply(prelead, intent);
+  const problemSummary = summarizeProblemSignals(intent);
+
+  return {
+    ...prelead,
+    should_reply: shouldReply,
+    suggested_reply: shouldReply ? buildManualSuggestedReply({ ...prelead, should_reply: shouldReply }, problemSummary) : "",
+    routing_decision: routingDecision,
+    part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
   };
 }
 
@@ -1325,9 +1876,67 @@ function analyzeRawCandidate(candidate: RawPreleadCandidate) {
 
   const intent = classifyPreleadIntent({ source: candidate.source, source_url: candidate.source_url, title: candidate.title, snippet: candidate.snippet });
   const problemSummary = summarizeProblemSignals(intent);
-  const lead = fromPlainText(source, candidate.snippet?.trim() || candidate.title, candidate.title, candidate.source_url, createdAt, null);
+  const lead = fromPlainText(source, candidate.snippet?.trim() || candidate.title, candidate.title, candidate.source_url, createdAt, null, candidate.thread_context_summary ?? null);
 
-  return { lead, intent, problemSummary };
+  return {
+    lead: {
+      ...lead,
+      thread_context_summary: candidate.thread_context_summary ?? lead.thread_context_summary ?? null,
+    },
+    intent,
+    problemSummary,
+    comment_context_used: candidate.comment_context_used ?? false,
+    comment_context_reason: candidate.comment_context_reason ?? null,
+  };
+}
+
+async function enrichRawCandidatesWithThreadContext(
+  candidates: RawPreleadCandidate[],
+  logger: Logger,
+  storedSummaries: Map<string, ThreadContextSummary | null>
+) {
+  const enriched: RawPreleadCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const url = candidate.source_url.trim();
+    const isRedditCandidate = isRedditUrl(url);
+    const hasStoredContext = storedSummaries.has(url);
+    const storedSummary = storedSummaries.get(url) ?? null;
+
+    if (hasStoredContext) {
+      const summary = storedSummary ?? summarizeThreadContext(`${candidate.title} ${candidate.snippet}`);
+      enriched.push({
+        ...candidate,
+        thread_context_summary: summary,
+        comment_context_used: Boolean(storedSummary),
+        comment_context_reason: storedSummary ? "stored thread context" : "stored row without summary",
+      });
+      continue;
+    }
+
+    if (!isRedditCandidate) {
+      enriched.push({
+        ...candidate,
+        thread_context_summary: null,
+        comment_context_used: false,
+        comment_context_reason: "non-reddit source",
+      });
+      continue;
+    }
+
+    const fetched = await fetchRedditThreadContext(url, logger);
+    const fallbackText = `${candidate.title} ${candidate.snippet}`;
+    const summary = fetched.summary ?? summarizeThreadContext(fallbackText);
+
+    enriched.push({
+      ...candidate,
+      thread_context_summary: summary,
+      comment_context_used: fetched.used,
+      comment_context_reason: fetched.reason ?? (fetched.used ? null : "fallback to title and snippet"),
+    });
+  }
+
+  return enriched;
 }
 
 function getCandidateText(lead: Pick<Prelead, "title" | "snippet">) {
@@ -1346,6 +1955,8 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   const text = getCandidateText(lead);
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
 
+  if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
+  if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
   if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
   if (bannedSignals.length > 0) return "banned_keyword";
@@ -1365,6 +1976,8 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
   const sourceUrl = lead.source_url.toLowerCase();
 
+  if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
+  if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
   if (intent.intent_type === "business_advice") return "business_advice";
   if (intent.intent_type === "machine_purchase") return "machine_purchase";
@@ -1382,6 +1995,7 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   ) {
     return "mattress_furniture";
   }
+  if (!hasStrictLeadQualitySignal(lead, intent)) return "low_quality_signal";
 
   return null;
 }
@@ -1494,7 +2108,7 @@ function hasHighTicketFabricationSignal(text: string, intent: PreleadIntent) {
   return signalCount >= 2 || intent.need_signals.includes("small batch") || intent.physical_part_signals.includes("prototype");
 }
 
-function hasStrongBuyerRequestShape(lead: Prelead, intent: PreleadIntent) {
+function hasStrongBuyerRequestShape(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
   if (intent.intent_type === "buyer_problem") {
     return true;
   }
@@ -1519,6 +2133,10 @@ function hasStrongBuyerRequestShape(lead: Prelead, intent: PreleadIntent) {
 }
 
 function isEligibleForAiShortlist(lead: Prelead, intent: PreleadIntent) {
+  if (!hasStrictLeadQualitySignal(lead, intent)) {
+    return false;
+  }
+
   if (!hasQualificationSignal(intent) && !hasMachiningOrPhysicalPartSignal(intent)) {
     return false;
   }
@@ -1544,6 +2162,12 @@ function isEligibleForAiShortlist(lead: Prelead, intent: PreleadIntent) {
 
 function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   let score = lead.lead_score;
+
+  score += lead.value_score * 2;
+  if (lead.value_tier === "high") score += 8;
+  if (lead.value_tier === "medium") score += 3;
+
+  if (!hasStrictLeadQualitySignal(lead, intent)) score -= 24;
 
   if (intent.intent_type === "buyer_problem") score += 14;
   if (intent.intent_type === "general_discussion") score -= 10;
@@ -1579,11 +2203,15 @@ function getFinalAiRejectionReason(
   lead: Prelead,
   intent: PreleadIntent,
   classification: AiPreleadClassification,
-  includeOutsideUk: boolean
+  includeOutsideUk: boolean,
+  minConfidence: number
 ): FinalRejectionReason | null {
-  if (!classification.is_lead) return "hard_reject";
-  if (classification.confidence < 0.6) return "ai_confidence_too_low";
+  if (!classification.is_lead || !classification.manufacturable) return "hard_reject";
+  if (classification.confidence < minConfidence) return "ai_confidence_too_low";
+  if (looksLikeNonManufacturableRepairJob(lead)) return "hard_reject";
+  if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
+  if (!hasStrictLeadQualitySignal(lead, intent)) return "missing_problem_signal";
 
   const hasHeuristicProblemSignal = intent.intent_type === "buyer_problem" && hasQualificationSignal(intent);
   const hasAiProblemSignal = classification.problem_type !== "unknown" || classification.manufacturing_type !== "unknown";
@@ -1626,6 +2254,7 @@ function qualifiesPrelead(lead: Prelead, intent: PreleadIntent, includeOutsideUk
     intent.confidence >= 0.6 &&
     hasQualificationSignal(intent) &&
     (intent.need_signals.length > 0 || intent.make_intent_signals.length > 0) &&
+    hasStrictLeadQualitySignal(lead, intent) &&
     lead.lead_score >= minScore
   );
 }
@@ -1828,22 +2457,48 @@ async function saveToSupabase(leads: Prelead[], logger: Logger) {
       return 0;
     }
 
-    const { error } = await supabase.from("pre_leads").insert(
-      freshLeads.map((lead) => ({
-        created_at: lead.created_at,
-        source: lead.source,
-        source_url: lead.source_url,
-        source_author: lead.source_author,
-        title: lead.title,
-        snippet: lead.snippet,
-        matched_keywords: lead.detected_keywords,
-        detected_materials: lead.detected_materials,
-        location_signal: lead.location_signal,
-        lead_score: lead.lead_score,
-        suggested_reply: lead.suggested_reply,
-        status: "new",
-      }))
-    );
+    const payload = freshLeads.map((lead) => ({
+      created_at: lead.created_at,
+      source: lead.source,
+      source_url: lead.source_url,
+      source_author: lead.source_author,
+      title: lead.title,
+      snippet: lead.snippet,
+      matched_keywords: lead.detected_keywords,
+      detected_materials: lead.detected_materials,
+      location_signal: lead.location_signal,
+      lead_score: lead.lead_score,
+      value_tier: lead.value_tier,
+      value_score: lead.value_score,
+      value_reason: lead.value_reason,
+      suggested_reply: lead.suggested_reply,
+      should_reply: lead.should_reply,
+      thread_context_summary: lead.thread_context_summary ?? null,
+      manual_notes: lead.manual_notes ?? null,
+      status: "new",
+    }));
+
+    const insertRows = async (rows: typeof payload) => {
+      const { error } = await supabase.from("pre_leads").insert(rows);
+      return error;
+    };
+
+    let error = await insertRows(payload);
+    if (error && /(thread_context_summary|should_reply|manual_notes|value_tier|value_score|value_reason)/.test(String(error))) {
+      logger.warn("Supabase insert retrying without derived reply/thread/value columns (schema cache lag?)");
+      error = await insertRows(
+        payload.map((row) => {
+          const stripped = { ...row } as Record<string, unknown>;
+          delete stripped.thread_context_summary;
+          delete stripped.should_reply;
+          delete stripped.manual_notes;
+          delete stripped.value_tier;
+          delete stripped.value_score;
+          delete stripped.value_reason;
+          return stripped;
+        }) as typeof payload
+      );
+    }
 
     if (error) {
       throw error;
@@ -1954,12 +2609,14 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     }
   }
 
-  const scoredCandidates = rawCandidates.map(analyzeRawCandidate);
-  const rawCandidateByUrl = new Map(rawCandidates.map((candidate) => [candidate.source_url, candidate]));
+  const storedThreadContextByUrl = await loadStoredThreadContextSummaries(rawCandidates.map((candidate) => candidate.source_url));
+  const enrichedRawCandidates = await enrichRawCandidatesWithThreadContext(rawCandidates, logger, storedThreadContextByUrl);
+  const scoredCandidates = enrichedRawCandidates.map(analyzeRawCandidate);
+  const rawCandidateByUrl = new Map(enrichedRawCandidates.map((candidate) => [candidate.source_url, candidate]));
   const scoredLeads = scoredCandidates.map(({ lead }) => lead);
-  const topScored = [...scoredLeads].sort((a, b) => b.lead_score - a.lead_score || a.created_at.localeCompare(b.created_at));
+  const topScored = [...scoredLeads].sort(comparePreleadPriority);
   const orderedScoredCandidates = [...scoredCandidates].sort(
-    (a, b) => b.lead.lead_score - a.lead.lead_score || a.lead.created_at.localeCompare(b.lead.created_at)
+    (a, b) => comparePreleadPriority(a.lead, b.lead)
   );
   const preAiRejectionBuckets: Record<PreAiHardRejectReason, Prelead[]> = {
     supplier_ad: [],
@@ -1969,6 +2626,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     tutorial_course: [],
     machine_purchase: [],
     business_advice: [],
+    non_manufacturable: [],
+    outside_uk_strong: [],
+    low_quality_signal: [],
     curiosity_practice: [],
   };
   const preAiRejectedReasonCounts = new Map<string, number>();
@@ -1997,7 +2657,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       if (debugEnabled) {
         const rawCandidate = rawCandidateByUrl.get(lead.source_url);
         logger.debug(
-          `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
+          `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} comment_context_used=${rawCandidate?.comment_context_used ? 'yes' : 'no'} comment_context_reason=${rawCandidate?.comment_context_reason ?? 'none'} thread_context_summary=${formatThreadContextSummary(rawCandidate?.thread_context_summary ?? null)} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
         );
         if (lead.routing_decision === 'cad_required') {
           logger.debug('CAD_REQUIRED');
@@ -2023,7 +2683,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     const aiShortlistPool = preAiCandidates.filter(({ lead, intent }) => isEligibleForAiShortlist(lead, intent));
     const orderedAiCandidates = [...aiShortlistPool].sort((a, b) => {
       const scoreDifference = calculateAiShortlistScore(b.lead, b.intent) - calculateAiShortlistScore(a.lead, a.intent);
-      return scoreDifference || b.lead.lead_score - a.lead.lead_score || a.lead.created_at.localeCompare(b.lead.created_at);
+      return scoreDifference || comparePreleadPriority(a.lead, b.lead);
     });
 
     const aiCandidates = orderedAiCandidates.slice(0, aiConfig.maxCandidates).map((entry) => ({
@@ -2042,6 +2702,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       location_confidence: entry.lead.location_confidence,
       location_reasons: entry.lead.location_reasons,
       lead_score: entry.lead.lead_score,
+      value_tier: entry.lead.value_tier,
+      value_score: entry.lead.value_score,
+      value_reason: entry.lead.value_reason,
       suggested_reply: entry.lead.suggested_reply,
     }));
     aiCandidateUrls = new Set(aiCandidates.map((candidate) => candidate.source_url));
@@ -2112,7 +2775,8 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           preAiCandidate.lead,
           preAiCandidate.intent,
           classification,
-          includeOutsideUk
+          includeOutsideUk,
+          aiConfig.minConfidence
         );
 
         if (finalRejectionReason) {
@@ -2145,6 +2809,8 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
         seenFinalUrls.add(candidate.source_url);
 
+        const shouldReply = classification.should_reply && computeShouldReply(preAiCandidate.lead, preAiCandidate.intent, classification);
+
         aiDecisionByUrl.set(candidate.source_url, {
           ai_is_lead: classification.is_lead,
           ai_confidence: classification.confidence,
@@ -2154,7 +2820,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           rejection_reason: null,
         });
 
-        finalAcceptedLeads.push(applyAiClassificationToLead(preAiCandidate.lead, classification));
+        finalAcceptedLeads.push(applyAiClassificationToLead(preAiCandidate.lead, classification, shouldReply, summarizeProblemSignals(preAiCandidate.intent)));
       }
 
       leads.push(...finalAcceptedLeads);
@@ -2215,7 +2881,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     }
   } else if (!aiConfig.enabled) {
     const heuristicRejectionBuckets: Record<
-      "supplier_ad" | "business_advice" | "machine_purchase" | "no_machining_signal" | "no_part_signal" | "no_need_signal" | "outside_uk" | "banned_keyword" | "curiosity_practice",
+      "supplier_ad" | "business_advice" | "machine_purchase" | "no_machining_signal" | "no_part_signal" | "no_need_signal" | "outside_uk" | "outside_uk_strong" | "banned_keyword" | "curiosity_practice" | "low_quality_signal" | "non_manufacturable",
       Prelead[]
     > = {
       supplier_ad: [],
@@ -2225,8 +2891,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       no_part_signal: [],
       no_need_signal: [],
       outside_uk: [],
+      outside_uk_strong: [],
       banned_keyword: [],
       curiosity_practice: [],
+      low_quality_signal: [],
+      non_manufacturable: [],
     };
 
     for (const { lead, intent } of preAiCandidates) {
@@ -2243,7 +2912,24 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           continue;
         }
 
-        leads.push(lead);
+        const shouldReply = computeShouldReply(lead, intent);
+        leads.push(
+          shouldReply
+            ? applyAiClassificationToLead(
+                lead,
+                {
+                  manufacturing_type: lead.manufacturing_type ?? "unknown",
+                  problem_summary: lead.description ?? lead.title,
+                  value_tier: lead.value_tier,
+                  value_score: lead.value_score,
+                  value_reason: lead.value_reason,
+                  suggested_reply: lead.suggested_reply,
+                },
+                true,
+                summarizeProblemSignals(intent)
+              )
+            : { ...lead, should_reply: false, suggested_reply: "" }
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.warn(`Failed to process heuristic rejection candidate: ${lead.source_url} - ${message}`);
@@ -2251,7 +2937,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       }
     }
 
-    leads.sort((a, b) => b.lead_score - a.lead_score || a.created_at.localeCompare(b.created_at));
+    leads.sort(comparePreleadPriority);
   } else {
     logger.warn("AI classifier is enabled but OPENAI_API_KEY is missing; skipping AI classification.");
   }

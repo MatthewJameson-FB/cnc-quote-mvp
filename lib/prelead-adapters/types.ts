@@ -5,6 +5,9 @@ export type RawPreleadCandidate = {
   snippet: string;
   published_at?: string | null;
   query_used?: string | null;
+  thread_context_summary?: import("@/lib/prelead-thread-context").ThreadContextSummary | null;
+  comment_context_used?: boolean;
+  comment_context_reason?: string | null;
 };
 
 export type PreleadAdapter = {

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation'
 
-export default function AdminRedirectPage() {
-  redirect("/internal-admin");
+export default function AdminPage() {
+  redirect('/internal-admin')
 }

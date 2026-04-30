@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-29T17:43:12.670Z",
+  "updatedAt": "2026-04-30T10:20:50.571Z",
   "entries": {
     "memory:memory/2026-04-25.md:1:4": {
       "key": "memory:memory/2026-04-25.md:1:4",
@@ -40,23 +40,25 @@
       "endLine": 6,
       "source": "memory",
       "snippet": "# 2026-04-28 - User is working on the Flangie CNC lead-generation system in a Next.js App Router + Supabase app. - User prefers very low-token progress updates: one short line with done/next/blocker/need-from-you style. - Prelead pipeline work has focused on SerpAPI discovery, stricter lead qualification, and later an AI classifier layer to reject irrelevant posts. - The user asked to continue implementing the AI classifier for prelead filtering.",
-      "recallCount": 5,
+      "recallCount": 6,
       "dailyCount": 0,
       "groundedCount": 0,
-      "totalScore": 1.9685445964336394,
+      "totalScore": 2.3634095251560208,
       "maxScore": 0.42559575140476225,
       "firstRecalledAt": "2026-04-28T20:01:46.687Z",
-      "lastRecalledAt": "2026-04-29T10:56:23.878Z",
+      "lastRecalledAt": "2026-04-30T10:20:50.571Z",
       "queryHashes": [
         "0ad5bda047ad",
         "4f74bed8e320",
         "30e254bd5c77",
         "0b8874e41427",
-        "cf5f1301406d"
+        "cf5f1301406d",
+        "e8bdb6cd9518"
       ],
       "recallDays": [
         "2026-04-28",
-        "2026-04-29"
+        "2026-04-29",
+        "2026-04-30"
       ],
       "conceptTags": [
         "router",
@@ -76,21 +78,23 @@
       "endLine": 10,
       "source": "memory",
       "snippet": "- Flangie CNC quote app: admin area moved to `/internal-admin`, with Supabase email/password login and allowlist via `ADMIN_EMAILS`. - Added lead/revenue/invoice tracking for `quotes` and a pre-lead monitoring pipeline (`pre_leads`, cron route, summary email, review dashboard). - User wants the pre-lead finder to store clean Reddit post permalinks, not search/media URLs. - Flangie CNC quote app: admin area moved to `/internal-admin`, with Supabase email/password login and allowlist via `ADMIN_EMAILS`. - Added lead/revenue/invoice tracking for `quotes` and a pre-lead monitoring pipeline (`pre_leads`, cron route, summary email, review dashboard). - User wants the pre-lead finder to store clean",
-      "recallCount": 3,
+      "recallCount": 4,
       "dailyCount": 0,
       "groundedCount": 0,
-      "totalScore": 1.0820628583431242,
-      "maxScore": 0.37893373966217037,
+      "totalScore": 1.5221952408552168,
+      "maxScore": 0.4401323825120926,
       "firstRecalledAt": "2026-04-28T20:01:46.687Z",
-      "lastRecalledAt": "2026-04-29T12:56:43.935Z",
+      "lastRecalledAt": "2026-04-30T10:20:50.571Z",
       "queryHashes": [
         "0ad5bda047ad",
         "66c282995148",
-        "f6957944e59e"
+        "f6957944e59e",
+        "e8bdb6cd9518"
       ],
       "recallDays": [
         "2026-04-28",
-        "2026-04-29"
+        "2026-04-29",
+        "2026-04-30"
       ],
       "conceptTags": [
         "internal-admin",
@@ -195,6 +199,68 @@
         "needs-physical-part",
         "ruler/coin/reference",
         "shared-inbox"
+      ]
+    },
+    "memory:memory/2026-04-30.md:1:6": {
+      "key": "memory:memory/2026-04-30.md:1:6",
+      "path": "memory/2026-04-30.md",
+      "startLine": 1,
+      "endLine": 6,
+      "source": "memory",
+      "snippet": "- Flangie lead system: implemented stricter Reddit/manual prelead qualification plus reply suppression. Thread/comment context is allowed only for reply generation/suppression, never for scoring, pre-AI filtering, or AI classification. Keep admin review required; no auto-posting. - User preferences/constraints: no Facebook scraping, no Meta API/session automation, no auto-message/auto-comment, no cron changes, no spam. For Reddit context, fetch only top 3 top-level comments, max 200 chars each, no nested replies, and do not send raw comments to OpenAI; only tiny heuristic summaries. - Lead quality rules now emphasise manufacturable discrete parts, UK or unknown location, and reject generic/i",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.3977914810180664,
+      "maxScore": 0.3977914810180664,
+      "firstRecalledAt": "2026-04-30T10:20:50.571Z",
+      "lastRecalledAt": "2026-04-30T10:20:50.571Z",
+      "queryHashes": [
+        "e8bdb6cd9518"
+      ],
+      "recallDays": [
+        "2026-04-30"
+      ],
+      "conceptTags": [
+        "openai",
+        "reddit/manual",
+        "thread/comment",
+        "generation/suppression",
+        "pre-ai",
+        "auto-posting",
+        "preferences/constraints",
+        "api/session"
+      ]
+    },
+    "memory:memory/2026-04-30.md:5:9": {
+      "key": "memory:memory/2026-04-30.md:5:9",
+      "path": "memory/2026-04-30.md",
+      "startLine": 5,
+      "endLine": 9,
+      "source": "memory",
+      "snippet": "- Built manual-only Discovery Groups admin feature for UK-first Facebook/Instagram discovery. It stores groups and opens best-effort manual search links; it is explicitly separate from Reddit automation. - Discovery Groups now includes an authenticated internal redirect route (`/internal-admin/discovery-groups/open`) that logs `discovery_group_events` when a group or quick-search chip is opened, while still doing no scraping/posting. - Validation completed successfully in workspace: `npm run lint`, `npm run build`, and `PRELEAD_DEBUG=true npm run find:preleads` all passed after latest changes. - Live DB caveat: Supabase schema-cache lag previously caused missing-column errors for new `pre_le",
+      "recallCount": 1,
+      "dailyCount": 0,
+      "groundedCount": 0,
+      "totalScore": 0.3801352649927139,
+      "maxScore": 0.3801352649927139,
+      "firstRecalledAt": "2026-04-30T10:20:50.571Z",
+      "lastRecalledAt": "2026-04-30T10:20:50.571Z",
+      "queryHashes": [
+        "e8bdb6cd9518"
+      ],
+      "recallDays": [
+        "2026-04-30"
+      ],
+      "conceptTags": [
+        "manual-only",
+        "uk-first",
+        "facebook/instagram",
+        "best-effort",
+        "discovery-group-events",
+        "quick-search",
+        "scraping/posting",
+        "prelead-debug"
       ]
     }
   }
