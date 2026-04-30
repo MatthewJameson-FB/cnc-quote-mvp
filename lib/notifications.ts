@@ -65,6 +65,15 @@ type PreleadSummaryItem = {
   created_at: string;
 };
 
+type InboundPartSubmissionEmailDetails = {
+  contactEmail: string;
+  description: string;
+  imageUrl?: string | null;
+  valueScore: number;
+  valueTier: 'low' | 'medium' | 'high';
+  adminLink?: string | null;
+};
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -700,4 +709,64 @@ export async function sendPreleadSummaryEmail(preleads: PreleadSummaryItem[]) {
 
   await sendResendEmail({ to, subject, text, html });
   return true;
+}
+
+function getInboundPartAlertRecipient() {
+  const direct = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
+  if (direct) return direct;
+
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean);
+
+  return adminEmails[0] ?? null;
+}
+
+export async function sendInboundPartSubmissionEmail(details: InboundPartSubmissionEmailDetails) {
+  const to = getInboundPartAlertRecipient();
+
+  if (!to) {
+    return { sent: false, skipped: true, providerId: null, error: 'Missing admin email recipient.' }
+  }
+
+  const subject = `New inbound part request – ${details.valueTier.toUpperCase()} priority`
+  const text = [
+    'New inbound part submission',
+    '',
+    `Contact email: ${details.contactEmail}`,
+    `Value score: ${details.valueScore}`,
+    `Value tier: ${details.valueTier}`,
+    `Description: ${details.description}`,
+    details.imageUrl ? `Image URL: ${details.imageUrl}` : null,
+    details.adminLink ? `Admin link: ${details.adminLink}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111;max-width:640px;margin:0 auto">
+      <h2 style="margin:0 0 12px">New inbound part submission</h2>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 16px">
+        <tr><td style="padding:6px 0;color:#6b7280">Contact email</td><td style="padding:6px 0;font-weight:600">${escapeHtml(details.contactEmail)}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Value score</td><td style="padding:6px 0;font-weight:600">${details.valueScore}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Value tier</td><td style="padding:6px 0;font-weight:600">${escapeHtml(details.valueTier)}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280;vertical-align:top">Description</td><td style="padding:6px 0;font-weight:600">${escapeHtml(details.description)}</td></tr>
+        ${details.imageUrl ? `<tr><td style="padding:6px 0;color:#6b7280;vertical-align:top">Image URL</td><td style="padding:6px 0;font-weight:600"><a href="${escapeHtml(details.imageUrl)}">${escapeHtml(details.imageUrl)}</a></td></tr>` : ''}
+        ${details.adminLink ? `<tr><td style="padding:6px 0;color:#6b7280;vertical-align:top">Admin</td><td style="padding:6px 0;font-weight:600"><a href="${escapeHtml(details.adminLink)}">Open in admin</a></td></tr>` : ''}
+      </table>
+    </div>
+  `
+
+  try {
+    return await sendResendEmail({
+      to,
+      subject,
+      text,
+      html,
+    })
+  } catch (error) {
+    console.error('INBOUND PART EMAIL ERROR:', error)
+    return { sent: false, skipped: false, providerId: null, error: error instanceof Error ? error.message : String(error) }
+  }
 }

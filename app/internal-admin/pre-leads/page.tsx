@@ -69,6 +69,9 @@ type PreLeadRecord = {
   thread_context_summary: ThreadContextSummary | null;
   suggested_reply: string;
   manual_notes: string | null;
+  post_text: string | null;
+  image_url: string | null;
+  contact_email: string | null;
   status: string | null;
   reviewed_at: string | null;
   contacted_at: string | null;
@@ -76,17 +79,9 @@ type PreLeadRecord = {
   dismissed_at: string | null;
 };
 
-function valueTierRank(tier: PreLeadRecord["value_tier"]) {
-  if (tier === "high") return 2;
-  if (tier === "medium") return 1;
-  return 0;
-}
-
 function comparePreLeads(a: PreLeadRecord, b: PreLeadRecord) {
-  const valueDifference = valueTierRank(b.value_tier) - valueTierRank(a.value_tier);
+  const valueDifference = (b.value_score ?? 0) - (a.value_score ?? 0);
   if (valueDifference !== 0) return valueDifference;
-  const replyDifference = Number(Boolean(b.should_reply)) - Number(Boolean(a.should_reply));
-  if (replyDifference !== 0) return replyDifference;
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 }
 
@@ -100,6 +95,10 @@ function matchesFilter(lead: PreLeadRecord, filter: string) {
   if (filter === 'all') return true;
   if (filter === 'dismissed') return status === 'dismissed';
   if (filter === 'in_progress') return status === 'active' || status === 'contacted';
+  if (filter === 'high_medium') return (lead.value_score ?? 0) >= 3;
+  if (filter === 'high') return (lead.value_score ?? 0) >= 6;
+  if (filter === 'medium') return (lead.value_score ?? 0) >= 3 && (lead.value_score ?? 0) < 6;
+  if (filter === 'low') return (lead.value_score ?? 0) < 3;
   return status === 'active';
 }
 
@@ -204,6 +203,13 @@ function LeadCard({
             <p className="mt-1 whitespace-pre-wrap text-slate-700">{lead.manual_notes}</p>
           </div>
         ) : null}
+        {lead.contact_email || lead.image_url || lead.post_text ? (
+          <div className="md:col-span-2 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            {lead.contact_email ? <p><span className="font-semibold text-slate-500">Contact email:</span> {lead.contact_email}</p> : null}
+            {lead.image_url ? <p><span className="font-semibold text-slate-500">Image:</span> {lead.image_url}</p> : null}
+            {lead.post_text ? <p><span className="font-semibold text-slate-500">Post text:</span> {lead.post_text}</p> : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -251,12 +257,13 @@ function LeadCard({
 export default async function PreLeadsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ status?: string; source?: string; discovery_group_id?: string }>;
+  searchParams?: Promise<{ status?: string; value?: string; source?: string; discovery_group_id?: string }>;
 }) {
   await requireAdminUser();
 
   const params = (await searchParams) ?? {};
   const filter = (params.status ?? "active").toLowerCase();
+  const valueFilter = (params.value ?? "high_medium").toLowerCase();
   const defaultSource = ["facebook", "instagram", "other"].includes((params.source ?? "").toLowerCase())
     ? (params.source ?? "facebook").toLowerCase()
     : "facebook";
@@ -281,7 +288,7 @@ export default async function PreLeadsPage({
     dismissed: normalizedLeads.filter((lead) => lead.status === "dismissed").length,
   };
   const leads = normalizedLeads
-    .filter((lead) => matchesFilter(lead, filter))
+    .filter((lead) => matchesFilter(lead, filter) && matchesFilter(lead, valueFilter))
     .sort(comparePreLeads);
 
   const { data: quotes } = await supabase.from("quotes").select("notes");
@@ -372,6 +379,24 @@ export default async function PreLeadsPage({
           </FilterLink>
           <FilterLink active={filter === "dismissed"} href="/internal-admin/pre-leads?status=dismissed">
             Dismissed ({counts.dismissed})
+          </FilterLink>
+        </section>
+
+        <section className="flex flex-wrap gap-2">
+          <FilterLink active={valueFilter === "high_medium"} href="/internal-admin/pre-leads?status=active&value=high_medium">
+            High + Medium
+          </FilterLink>
+          <FilterLink active={valueFilter === "high"} href="/internal-admin/pre-leads?status=active&value=high">
+            High
+          </FilterLink>
+          <FilterLink active={valueFilter === "medium"} href="/internal-admin/pre-leads?status=active&value=medium">
+            Medium
+          </FilterLink>
+          <FilterLink active={valueFilter === "low"} href="/internal-admin/pre-leads?status=active&value=low">
+            Low
+          </FilterLink>
+          <FilterLink active={valueFilter === "all"} href="/internal-admin/pre-leads?status=active&value=all">
+            All
           </FilterLink>
         </section>
 

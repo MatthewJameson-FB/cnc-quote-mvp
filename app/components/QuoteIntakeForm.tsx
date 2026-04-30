@@ -244,11 +244,17 @@ export default function QuoteIntakeForm() {
           <section className="min-w-0 space-y-6 pt-2 lg:pt-10">
             <div className="max-w-2xl space-y-4">
               <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                Get your custom part made
+                Can’t find a replacement part anywhere?
               </h1>
               <p className="text-lg leading-8 text-slate-300 sm:text-xl">
-                Upload a file for the fastest quote, or upload photos if the part needs recreating.
+                Upload a photo — we recreate it and get it made.
               </p>
+              <Link
+                href="/submit-part"
+                className="inline-flex rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500"
+              >
+                Upload your broken part
+              </Link>
             </div>
 
             <ul className="space-y-3 text-base text-slate-200">
