@@ -5,10 +5,12 @@ import {
   quoteStatusLabels,
   type QuoteStatus,
 } from "@/lib/quote-statuses";
+import { normalizeQuoteVisibilityStatus, quoteVisibilityLabel, type QuoteVisibilityStatus } from "@/lib/quote-visibility";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import ConfirmActionButton from "./ConfirmActionButton";
 import CopyFollowupQuestionsButton from "./CopyFollowupQuestionsButton";
 import CopySupplierBriefButton from "./CopySupplierBriefButton";
+import QuoteVisibilityActions from "./QuoteVisibilityActions";
 import { generateSupplierBrief } from "@/lib/supplier-brief";
 import {
   deleteTestQuote,
@@ -43,6 +45,10 @@ type QuoteRecord = {
   notes: string | null;
   status: string | null;
   quote_status?: string | null;
+  contacted_at?: string | null;
+  converted_at?: string | null;
+  dismissed_reason?: string | null;
+  dismissed_at?: string | null;
   supplier_id?: string | null;
   supplier_fee_status?: string | null;
   supplier_fee_amount?: number | null;
@@ -72,6 +78,13 @@ const statusTone: Record<QuoteStatus, string> = {
   quoted: "bg-violet-100 text-violet-900 ring-1 ring-violet-200",
   won: "bg-green-100 text-green-900 ring-1 ring-green-200",
   lost: "bg-red-100 text-red-900 ring-1 ring-red-200",
+};
+
+const visibilityTone: Record<QuoteVisibilityStatus, string> = {
+  active: "bg-slate-100 text-slate-800 ring-1 ring-slate-200",
+  contacted: "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200",
+  converted: "bg-violet-100 text-violet-900 ring-1 ring-violet-200",
+  dismissed: "bg-red-100 text-red-900 ring-1 ring-red-200",
 };
 
 const commercialQuoteTone: Record<string, string> = {
@@ -107,17 +120,32 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "—";
 }
 
-function displayStatus(status: string | null | undefined) {
-  if (!status) {
-    return defaultQuoteStatus;
+function displayQuoteStatusLabel(status: string | null | undefined) {
+  const visibilityStatus = normalizeQuoteVisibilityStatus(status);
+
+  if (visibilityStatus !== "active") {
+    return quoteVisibilityLabel(visibilityStatus);
+  }
+
+  if (!status || status === "active") {
+    return "Active";
   }
 
   return status in quoteStatusLabels ? (status as QuoteStatus) : defaultQuoteStatus;
 }
 
-function displayStatusLabel(status: string | null | undefined) {
-  const resolved = displayStatus(status);
-  return quoteStatusLabels[resolved] ?? status ?? defaultQuoteStatus;
+function quoteStatusTone(status: string | null | undefined) {
+  const visibilityStatus = normalizeQuoteVisibilityStatus(status);
+
+  if (visibilityStatus !== "active") {
+    return visibilityTone[visibilityStatus];
+  }
+
+  if (status && status in statusTone) {
+    return statusTone[status as QuoteStatus];
+  }
+
+  return visibilityTone.active;
 }
 
 function formatQuoteRef(quote: QuoteRecord) {
@@ -328,7 +356,7 @@ function Badge({ children, tone }: { children: string; tone: string }) {
 }
 
 function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
-  const status = displayStatus(quote.status);
+  const visibilityStatus = normalizeQuoteVisibilityStatus(quote.status);
   const commercialStatus = commercialQuoteStatus(quote);
   const feeStatus = supplierFeeStatus(quote);
   const quoteRef = formatQuoteRef(quote);
@@ -358,13 +386,14 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
   const margin = marginValue(quote);
   const description = descriptionValue(quote);
   const nextAction = nextActionText(quote);
+  const isDismissed = visibilityStatus === "dismissed";
 
   return (
-    <article className="rounded-3xl border bg-white p-5 shadow-sm">
+    <article className={`rounded-3xl border bg-white p-5 shadow-sm ${isDismissed ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={statusTone[status]}>{displayStatusLabel(status)}</Badge>
+            <Badge tone={quoteStatusTone(quote.status)}>{displayQuoteStatusLabel(quote.status)}</Badge>
             <Badge tone={commercialQuoteTone[commercialStatus] ?? commercialQuoteTone.submitted}>
               {labelCommercialStatus(commercialStatus)}
             </Badge>
@@ -424,6 +453,7 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
             <div className="mt-3 flex flex-wrap gap-2">
               {followupQuestions.length ? <CopyFollowupQuestionsButton questions={followupQuestions} /> : null}
               <CopySupplierBriefButton brief={supplierBrief} />
+              <QuoteVisibilityActions quoteId={quote.id} status={visibilityStatus} />
               <form action={updateCommercialQuoteStatus}>
                 <input type="hidden" name="quoteId" value={quote.id} />
                 <input type="hidden" name="quoteStatus" value="awaiting_final_details" />
@@ -664,6 +694,9 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Timeline</p>
+                  <p>Contacted: {formatDate(quote.contacted_at ?? null)}</p>
+                  <p>Converted: {formatDate(quote.converted_at ?? null)}</p>
+                  <p>Dismissed: {formatDate(quote.dismissed_at ?? null)}</p>
                   <p>Quoted: {formatDate(quote.quoted_at)}</p>
                   <p>Won: {formatDate(quote.won_at)}</p>
                   <p>Lost: {formatDate(quote.lost_at)}</p>
@@ -689,8 +722,15 @@ function QuoteCard({ quote }: { quote: QuoteRecordWithFile }) {
   );
 }
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string }>;
+}) {
   await requireAdminUser();
+
+  const params = (await searchParams) ?? {};
+  const filter = (params.status ?? "active").toLowerCase();
 
   const supabase = createSupabaseAdminClient();
 
@@ -731,17 +771,39 @@ export default async function AdminPage() {
     })
   );
 
-  const totalLeads = quotesWithFileLinks.length;
-  const acceptedLeads = quotesWithFileLinks.filter((quote) => quote.status === "accepted").length;
-  const wonJobs = quotesWithFileLinks.filter((quote) => quote.status === "won").length;
-  const totalPipelineValue = quotesWithFileLinks.reduce(
+  const allQuotes = quotesWithFileLinks.map((quote) => ({
+    ...quote,
+    visibilityStatus: normalizeQuoteVisibilityStatus(quote.status),
+  }));
+
+  const visibleQuotes = allQuotes.filter((quote) => quote.visibilityStatus !== "dismissed");
+  const dismissedQuotes = allQuotes.filter((quote) => quote.visibilityStatus === "dismissed");
+
+  const counts = {
+    active: visibleQuotes.filter((quote) => quote.visibilityStatus === "active").length,
+    contacted: visibleQuotes.filter((quote) => quote.visibilityStatus === "contacted").length,
+    converted: visibleQuotes.filter((quote) => quote.visibilityStatus === "converted").length,
+    all: allQuotes.length,
+    dismissed: dismissedQuotes.length,
+  };
+
+  const filteredQuotes = allQuotes.filter((quote) => {
+    if (filter === "all") return true;
+    if (filter === "dismissed") return quote.visibilityStatus === "dismissed";
+    if (filter === "in_progress") return quote.visibilityStatus === "contacted";
+    if (filter === "converted") return quote.visibilityStatus === "converted";
+    return quote.visibilityStatus === "active";
+  });
+
+  const totalPipelineValue = visibleQuotes.reduce(
     (sum, quote) => sum + (quote.job_value ?? 0),
     0
   );
-  const totalRevenue = quotesWithFileLinks.reduce(
+  const totalRevenue = visibleQuotes.reduce(
     (sum, quote) => sum + calculateRevenue({ status: quote.status, job_value: quote.job_value }).total_revenue,
     0
   );
+  const conversionRate = counts.contacted ? counts.converted / counts.contacted : 0;
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 sm:p-8">
@@ -776,15 +838,34 @@ export default async function AdminPage() {
           </a>
         </div>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <StatCard label="Total leads" value={String(totalLeads)} />
-          <StatCard label="Accepted leads" value={String(acceptedLeads)} />
-          <StatCard label="Won jobs" value={String(wonJobs)} />
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard label="Active quotes" value={String(counts.active)} />
+          <StatCard label="Contacted" value={String(counts.contacted)} />
+          <StatCard label="Converted" value={String(counts.converted)} />
+          <StatCard label="Conversion rate" value={`${Math.round(conversionRate * 100)}%`} />
           <StatCard label="Pipeline value" value={formatMoney(totalPipelineValue)} />
           <StatCard label="Total revenue" value={formatMoney(totalRevenue)} />
         </section>
 
-        {quotesWithFileLinks.length === 0 ? (
+        <section className="flex flex-wrap gap-2">
+          <a href="/internal-admin?status=active" className={`rounded-full px-4 py-2 text-sm font-medium transition ${filter === "active" ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
+            Active ({counts.active})
+          </a>
+          <a href="/internal-admin?status=in_progress" className={`rounded-full px-4 py-2 text-sm font-medium transition ${filter === "in_progress" ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
+            In progress ({counts.contacted})
+          </a>
+          <a href="/internal-admin?status=converted" className={`rounded-full px-4 py-2 text-sm font-medium transition ${filter === "converted" ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
+            Converted ({counts.converted})
+          </a>
+          <a href="/internal-admin?status=all" className={`rounded-full px-4 py-2 text-sm font-medium transition ${filter === "all" ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
+            All ({counts.all})
+          </a>
+          <a href="/internal-admin?status=dismissed" className={`rounded-full px-4 py-2 text-sm font-medium transition ${filter === "dismissed" ? "bg-slate-950 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}>
+            Dismissed ({counts.dismissed})
+          </a>
+        </section>
+
+        {filteredQuotes.length === 0 ? (
           <div className="rounded-3xl border border-dashed bg-white p-10 text-center shadow-sm">
             <p className="text-lg font-semibold text-slate-900">
               No leads yet. New quote requests will appear here.
@@ -792,7 +873,7 @@ export default async function AdminPage() {
           </div>
         ) : (
           <div className="grid gap-6">
-            {quotesWithFileLinks.map((quote) => (
+            {filteredQuotes.map((quote) => (
               <QuoteCard key={quote.id} quote={quote} />
             ))}
           </div>
