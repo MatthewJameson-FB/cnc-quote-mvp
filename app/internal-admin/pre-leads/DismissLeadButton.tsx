@@ -40,7 +40,7 @@ export default function DismissLeadButton({
       disabled={pending}
       className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {label}
+      {dismissed ? 'Dismissed' : label}
     </button>
   )
 }
