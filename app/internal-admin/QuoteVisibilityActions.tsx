@@ -29,7 +29,7 @@ export default function QuoteVisibilityActions({
     })
   }
 
-  const dismissLabel = status === 'dismissed' ? 'Undo dismiss' : 'Dismiss'
+  const dismissLabel = status === 'dismissed' ? 'Restore' : 'Dismiss'
 
   return (
     <div className="flex flex-wrap gap-2">

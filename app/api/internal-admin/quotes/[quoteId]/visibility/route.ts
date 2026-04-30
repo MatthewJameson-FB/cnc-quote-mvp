@@ -37,6 +37,16 @@ export async function POST(
   const supabase = createSupabaseAdminClient()
   const update: Record<string, unknown> = {}
 
+  const { data: existingQuote, error: lookupError } = await supabase
+    .from('quotes')
+    .select('contacted_at, converted_at')
+    .eq('id', quoteId)
+    .maybeSingle()
+
+  if (lookupError) {
+    return NextResponse.json({ error: lookupError.message }, { status: 500 })
+  }
+
   if (action === 'dismiss') {
     update.status = 'dismissed'
     update.dismissed_reason = 'manual'
@@ -51,20 +61,16 @@ export async function POST(
 
   if (action === 'contacted') {
     update.status = 'contacted'
-    update.contacted_at = nowIso()
+    update.contacted_at = existingQuote?.contacted_at ?? nowIso()
     update.dismissed_reason = null
     update.dismissed_at = null
   }
 
   if (action === 'converted') {
     update.status = 'converted'
-    update.converted_at = nowIso()
+    update.converted_at = existingQuote?.converted_at ?? nowIso()
     update.dismissed_reason = null
     update.dismissed_at = null
-  }
-
-  if (action === 'contacted' && !update.contacted_at) {
-    update.contacted_at = nowIso()
   }
 
   const { error } = await supabase.from('quotes').update(update).eq('id', quoteId)
