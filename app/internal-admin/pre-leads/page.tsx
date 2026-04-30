@@ -1,19 +1,20 @@
 import { requireAdminUser } from "@/lib/admin-auth";
 import { formatThreadContextSummary, type ThreadContextSummary } from "@/lib/prelead-thread-context";
-import { preLeadStatusLabels, type PreLeadStatus } from "@/lib/pre-lead-statuses";
+import { normalizePreLeadStatus, preLeadStatusLabels, type PreLeadStatus } from "@/lib/pre-lead-statuses";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import ConfirmActionButton from "../ConfirmActionButton";
 import CopyReplyButton from "../CopyReplyButton";
-import { createManualPrelead, deleteTestPreLead, setPreLeadContacted, setPreLeadRejected, setPreLeadReviewed } from "./actions";
+import DismissLeadButton from "./DismissLeadButton";
+import { createManualPrelead, deleteTestPreLead, setPreLeadActive, setPreLeadContacted, setPreLeadConverted } from "./actions";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
 const statusTone: Record<PreLeadStatus, string> = {
-  new: "bg-slate-100 text-slate-800 ring-1 ring-slate-200",
-  reviewed: "bg-blue-100 text-blue-900 ring-1 ring-blue-200",
-  rejected: "bg-red-100 text-red-900 ring-1 ring-red-200",
+  active: "bg-slate-100 text-slate-800 ring-1 ring-slate-200",
   contacted: "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200",
+  converted: "bg-violet-100 text-violet-900 ring-1 ring-violet-200",
+  dismissed: "bg-red-100 text-red-900 ring-1 ring-red-200",
 };
 
 function formatDate(value: string | null) {
@@ -71,6 +72,8 @@ type PreLeadRecord = {
   status: string | null;
   reviewed_at: string | null;
   contacted_at: string | null;
+  dismissed_reason: string | null;
+  dismissed_at: string | null;
 };
 
 function valueTierRank(tier: PreLeadRecord["value_tier"]) {
@@ -85,6 +88,19 @@ function comparePreLeads(a: PreLeadRecord, b: PreLeadRecord) {
   const replyDifference = Number(Boolean(b.should_reply)) - Number(Boolean(a.should_reply));
   if (replyDifference !== 0) return replyDifference;
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
+function resolvedStatus(status: string | null | undefined): PreLeadStatus {
+  return normalizePreLeadStatus(status);
+}
+
+function matchesFilter(lead: PreLeadRecord, filter: string) {
+  const status = resolvedStatus(lead.status);
+
+  if (filter === 'all') return true;
+  if (filter === 'dismissed') return status === 'dismissed';
+  if (filter === 'in_progress') return status === 'active' || status === 'contacted';
+  return status === 'active';
 }
 
 function extractNoteValue(notes: string | null, key: string) {
@@ -105,12 +121,14 @@ function LeadCard({
   lead,
   converted,
   estimateAccepted,
+  dismissed,
 }: {
   lead: PreLeadRecord;
   converted: boolean;
   estimateAccepted: boolean;
+  dismissed: boolean;
 }) {
-  const status = (lead.status ?? "new") as PreLeadStatus;
+  const status = resolvedStatus(lead.status);
   const canDelete = isTestLikePreLead(lead);
 
   return (
@@ -197,16 +215,10 @@ function LeadCard({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <form action={setPreLeadReviewed}>
+        <form action={setPreLeadActive}>
           <input type="hidden" name="preLeadId" value={lead.id} />
           <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            Mark reviewed
-          </button>
-        </form>
-        <form action={setPreLeadRejected}>
-          <input type="hidden" name="preLeadId" value={lead.id} />
-          <button className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-            Mark rejected
+            Mark active
           </button>
         </form>
         <form action={setPreLeadContacted}>
@@ -215,6 +227,13 @@ function LeadCard({
             Mark contacted
           </button>
         </form>
+        <form action={setPreLeadConverted}>
+          <input type="hidden" name="preLeadId" value={lead.id} />
+          <button className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">
+            Mark converted
+          </button>
+        </form>
+        <DismissLeadButton leadId={lead.id} dismissed={dismissed} />
         {canDelete ? (
           <ConfirmActionButton
             action={deleteTestPreLead}
@@ -237,7 +256,7 @@ export default async function PreLeadsPage({
   await requireAdminUser();
 
   const params = (await searchParams) ?? {};
-  const filter = (params.status ?? "all").toLowerCase();
+  const filter = (params.status ?? "active").toLowerCase();
   const defaultSource = ["facebook", "instagram", "other"].includes((params.source ?? "").toLowerCase())
     ? (params.source ?? "facebook").toLowerCase()
     : "facebook";
@@ -250,15 +269,19 @@ export default async function PreLeadsPage({
     throw new Error(error.message);
   }
 
+  const normalizedLeads = (allLeads as PreLeadRecord[] | null ?? []).map((lead) => ({
+    ...lead,
+    status: resolvedStatus(lead.status),
+  }));
+
   const counts = {
-    all: allLeads?.length ?? 0,
-    new: (allLeads ?? []).filter((lead) => lead.status === "new").length,
-    reviewed: (allLeads ?? []).filter((lead) => lead.status === "reviewed").length,
-    rejected: (allLeads ?? []).filter((lead) => lead.status === "rejected").length,
-    contacted: (allLeads ?? []).filter((lead) => lead.status === "contacted").length,
+    active: normalizedLeads.filter((lead) => lead.status === "active").length,
+    in_progress: normalizedLeads.filter((lead) => lead.status === "active" || lead.status === "contacted").length,
+    all: normalizedLeads.filter((lead) => lead.status !== "dismissed").length,
+    dismissed: normalizedLeads.filter((lead) => lead.status === "dismissed").length,
   };
-  const leads = (allLeads as PreLeadRecord[] | null ?? [])
-    .filter((lead) => filter === "all" || lead.status === filter)
+  const leads = normalizedLeads
+    .filter((lead) => matchesFilter(lead, filter))
     .sort(comparePreLeads);
 
   const { data: quotes } = await supabase.from("quotes").select("notes");
@@ -338,20 +361,17 @@ export default async function PreLeadsPage({
         </section>
 
         <section className="flex flex-wrap gap-2">
+          <FilterLink active={filter === "active"} href="/internal-admin/pre-leads?status=active">
+            Active ({counts.active})
+          </FilterLink>
+          <FilterLink active={filter === "in_progress"} href="/internal-admin/pre-leads?status=in_progress">
+            In progress ({counts.in_progress})
+          </FilterLink>
           <FilterLink active={filter === "all"} href="/internal-admin/pre-leads?status=all">
             All ({counts.all})
           </FilterLink>
-          <FilterLink active={filter === "new"} href="/internal-admin/pre-leads?status=new">
-            New ({counts.new})
-          </FilterLink>
-          <FilterLink active={filter === "reviewed"} href="/internal-admin/pre-leads?status=reviewed">
-            Reviewed ({counts.reviewed})
-          </FilterLink>
-          <FilterLink active={filter === "rejected"} href="/internal-admin/pre-leads?status=rejected">
-            Rejected ({counts.rejected})
-          </FilterLink>
-          <FilterLink active={filter === "contacted"} href="/internal-admin/pre-leads?status=contacted">
-            Contacted ({counts.contacted})
+          <FilterLink active={filter === "dismissed"} href="/internal-admin/pre-leads?status=dismissed">
+            Dismissed ({counts.dismissed})
           </FilterLink>
         </section>
 
@@ -367,6 +387,7 @@ export default async function PreLeadsPage({
                 lead={lead}
                 converted={convertedPreleadIds.has(lead.id)}
                 estimateAccepted={acceptedPreleadIds.has(lead.id)}
+                dismissed={lead.status === "dismissed"}
               />
             ))}
           </div>

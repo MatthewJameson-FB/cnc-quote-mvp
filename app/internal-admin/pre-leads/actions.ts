@@ -15,13 +15,23 @@ async function updatePreLeadStatus(preLeadId: string, status: PreLeadStatus) {
   const supabase = createSupabaseAdminClient();
   const update: Record<string, unknown> = { status };
 
-  if (status === "reviewed") {
-    update.reviewed_at = nowIso();
+  if (status === "contacted") {
+    update.contacted_at = nowIso();
   }
 
-  if (status === "contacted") {
-    update.reviewed_at = nowIso();
-    update.contacted_at = nowIso();
+  if (status === "dismissed") {
+    update.dismissed_reason = "manual";
+    update.dismissed_at = nowIso();
+  }
+
+  if (status === "active") {
+    update.dismissed_reason = null;
+    update.dismissed_at = null;
+  }
+
+  if (status === "converted") {
+    update.dismissed_reason = null;
+    update.dismissed_at = null;
   }
 
   const { error } = await supabase.from("pre_leads").update(update).eq("id", preLeadId);
@@ -33,24 +43,14 @@ async function updatePreLeadStatus(preLeadId: string, status: PreLeadStatus) {
   revalidatePath("/internal-admin/pre-leads");
 }
 
-export async function setPreLeadReviewed(formData: FormData) {
+export async function setPreLeadActive(formData: FormData) {
   const preLeadId = String(formData.get("preLeadId") ?? "").trim();
 
   if (!preLeadId) {
     throw new Error("Missing pre-lead id.");
   }
 
-  await updatePreLeadStatus(preLeadId, "reviewed");
-}
-
-export async function setPreLeadRejected(formData: FormData) {
-  const preLeadId = String(formData.get("preLeadId") ?? "").trim();
-
-  if (!preLeadId) {
-    throw new Error("Missing pre-lead id.");
-  }
-
-  await updatePreLeadStatus(preLeadId, "rejected");
+  await updatePreLeadStatus(preLeadId, "active");
 }
 
 export async function setPreLeadContacted(formData: FormData) {
@@ -61,6 +61,36 @@ export async function setPreLeadContacted(formData: FormData) {
   }
 
   await updatePreLeadStatus(preLeadId, "contacted");
+}
+
+export async function setPreLeadConverted(formData: FormData) {
+  const preLeadId = String(formData.get("preLeadId") ?? "").trim();
+
+  if (!preLeadId) {
+    throw new Error("Missing pre-lead id.");
+  }
+
+  await updatePreLeadStatus(preLeadId, "converted");
+}
+
+export async function dismissPreLead(formData: FormData) {
+  const preLeadId = String(formData.get("preLeadId") ?? "").trim();
+
+  if (!preLeadId) {
+    throw new Error("Missing pre-lead id.");
+  }
+
+  await updatePreLeadStatus(preLeadId, "dismissed");
+}
+
+export async function undoDismissPreLead(formData: FormData) {
+  const preLeadId = String(formData.get("preLeadId") ?? "").trim();
+
+  if (!preLeadId) {
+    throw new Error("Missing pre-lead id.");
+  }
+
+  await updatePreLeadStatus(preLeadId, "active");
 }
 
 export async function deleteTestPreLead(formData: FormData) {
@@ -158,9 +188,11 @@ export async function createManualPrelead(formData: FormData) {
       should_reply: lead.should_reply,
       thread_context_summary: lead.thread_context_summary ?? null,
       manual_notes: lead.manual_notes ?? null,
-      status: "new",
+      status: "active",
       reviewed_at: null,
       contacted_at: null,
+      dismissed_reason: null,
+      dismissed_at: null,
     },
     { onConflict: "source_url" }
   );
