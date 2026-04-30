@@ -10,7 +10,7 @@ function nowIso() {
 
 function revalidateDiscoveryGroupViews() {
   revalidatePath('/internal-admin/discovery-groups')
-  revalidatePath('/Admin/discovery-groups')
+  revalidatePath('/admin/discovery-groups')
 }
 
 function parsePriority(value: FormDataEntryValue | null) {

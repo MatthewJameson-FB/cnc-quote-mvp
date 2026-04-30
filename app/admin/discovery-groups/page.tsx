@@ -10,8 +10,8 @@ export default async function AdminDiscoveryGroupsPage({
   return (
     <DiscoveryGroupsPageView
       searchParams={searchParams}
-      discoveryBasePath="/Admin/discovery-groups"
-      pasteLeadPath="/Admin/manual-lead"
+      discoveryBasePath="/admin/discovery-groups"
+      pasteLeadPath="/admin/manual-lead"
     />
   )
 }

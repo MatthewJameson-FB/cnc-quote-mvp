@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       {
         source: "/Admin/:path*",
         destination: "/admin/:path*",
-        permanent: false,
+        permanent: true,
       },
     ];
   },

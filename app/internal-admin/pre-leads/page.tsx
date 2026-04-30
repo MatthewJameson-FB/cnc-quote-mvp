@@ -288,7 +288,7 @@ export default async function PreLeadsPage({
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Pre-leads review</h1>
           <p className="mt-2 text-slate-600">Manual review only. No outreach is sent from this page.</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <a href="/Admin/discovery-groups" className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <a href="/admin/discovery-groups" className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
               Open Discovery Groups
             </a>
           </div>
