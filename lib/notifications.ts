@@ -30,6 +30,10 @@ type QuoteNotificationDetails = {
   estimate?: EstimateQuoteResult;
   confirmationYesUrl?: string;
   confirmationNoUrl?: string;
+  adminLink?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleYear?: string;
 };
 
 type IntroductionEmailDetails = {
@@ -144,71 +148,27 @@ async function sendResendEmail({
   };
 }
 
-function stageLabel(stage?: string) {
-  if (stage === "needs_cad" || stage === "needs_file") return "Needs CAD recreation";
-  if (stage === "needs_print") return "Ready for supplier quote";
-  if (stage === "needs_both") return "Needs review (file + photos)";
-  return stage || "—";
+function vehicleLabel(details: Pick<QuoteNotificationDetails, "vehicleMake" | "vehicleModel" | "vehicleYear">) {
+  return [details.vehicleMake, details.vehicleModel, details.vehicleYear].filter(Boolean).join(" ");
 }
 
-function routingLabel(routingDecision?: string) {
-  if (routingDecision === "cad_required") return "Needs CAD recreation";
-  if (routingDecision === "3d_print") return "Ready for supplier quote (3D print)";
-  if (routingDecision === "cnc") return "Ready for supplier quote (CNC)";
-  return routingDecision || "Review";
+function partSummary(details: QuoteNotificationDetails) {
+  const title = details.description?.trim() || "Part request";
+  const vehicle = vehicleLabel(details);
+  return vehicle ? `${title} · ${vehicle}` : title;
 }
 
-function manufacturingTypeLabel(type?: string) {
-  if (type === "3d_print") return "3D print";
-  if (type === "cnc") return "CNC";
-  if (type === "fabrication") return "Fabrication";
-  return type || "—";
+function summaryBullets(details: QuoteNotificationDetails) {
+  const photos = details.photoUrls?.length || 0;
+  return [
+    details.cadRequired ? "CAD required" : "Likely manufacturable",
+    `${photos} photo${photos === 1 ? "" : "s"}`,
+    details.measurements?.trim() ? `Measurement: ${details.measurements.trim()}` : null,
+  ].filter(Boolean) as string[];
 }
 
-function photoReadinessLabel(value?: string) {
-  if (value === "ready_from_photos") return "Ready from photos";
-  if (value === "needs_more_angles") return "Needs more angles";
-  if (value === "needs_scale_reference") return "Needs scale reference";
-  if (value === "needs_physical_part") return "Needs physical part";
-  return value || "—";
-}
-
-function actionHint(details: QuoteNotificationDetails) {
-  if (details.routingDecision === "cad_required") {
-    return "Next step: review photos and prepare CAD recreation brief.";
-  }
-
-  if (details.routingDecision === "3d_print") {
-    return "Next step: review file and send for 3D print quote.";
-  }
-
-  if (details.routingDecision === "cnc") {
-    return "Next step: review file and send for CNC quote.";
-  }
-
-  return "Next step: review the request and decide the best production path.";
-}
-
-function renderDetailRow(label: string, value: string) {
-  return `
-    <tr>
-      <td style="padding:8px 0;color:#64748b;font-size:14px;width:42%;vertical-align:top">${escapeHtml(label)}</td>
-      <td style="padding:8px 0;color:#0f172a;font-size:14px;font-weight:600;vertical-align:top">${escapeHtml(value || "—")}</td>
-    </tr>
-  `;
-}
-
-function renderLinkList(urls: string[] | undefined, emptyLabel = "None") {
-  if (!urls?.length) {
-    return `<span style="color:#64748b">${escapeHtml(emptyLabel)}</span>`;
-  }
-
-  return urls
-    .map(
-      (url, index) =>
-        `<div style="margin:0 0 8px"><a href="${escapeHtml(url)}" style="display:inline-block;color:#2563eb;text-decoration:none;font-weight:600">Open upload ${index + 1}</a></div>`
-    )
-    .join("");
+function primaryPhotoLink(details: QuoteNotificationDetails) {
+  return details.photoUrls?.[0] || details.fileUrls?.[0] || null;
 }
 
 function renderActionButtons(yesUrl?: string, noUrl?: string) {
@@ -298,48 +258,28 @@ function customerQuoteEmailHtml(details: QuoteNotificationDetails) {
 }
 
 function internalQuoteEmailText(details: QuoteNotificationDetails) {
+  const adminLink = details.adminLink || "/admin/quotes";
+  const photoLink = primaryPhotoLink(details);
+  const summary = summaryBullets(details);
+
   return [
-    "New custom part request",
+    "New part request",
     "",
-    `Name: ${details.name}`,
-    `Email: ${details.email}`,
-    `Phone: ${details.phone || "—"}`,
-    `Company: ${details.companyName || "—"}`,
-    `Material: ${details.material}`,
-    `Quantity: ${details.quantity}`,
-    `Stage: ${stageLabel(details.stage)}`,
-    `Manufacturing type: ${manufacturingTypeLabel(details.manufacturingType)}`,
-    `Routing decision: ${routingLabel(details.routingDecision)}`,
+    `Customer: ${details.name} <${details.email}>`,
+    `Part: ${partSummary(details)}`,
+    details.vehicleMake || details.vehicleModel || details.vehicleYear ? `Vehicle: ${vehicleLabel(details)}` : null,
     "",
-    `Rough estimate: ${renderEstimateSummary(details)}`,
-    `Confidence: ${details.estimate?.confidence || "—"}`,
-    details.estimate?.disclaimer ?? null,
+    "Summary:",
+    ...summary.map((item) => `- ${item}`),
     "",
-    `File uploaded: ${details.hasFile ? "yes" : "no"}`,
-    `Photos uploaded: ${details.hasPhotos ? "yes" : "no"}`,
-    ...(details.fileUrls?.length ? details.fileUrls.map((url, index) => `File link ${index + 1}: ${url}`) : []),
-    ...(details.photoUrls?.length ? details.photoUrls.map((url, index) => `Photo link ${index + 1}: ${url}`) : []),
-    ...(details.hasPhotos
-      ? [
-          "",
-          `Measurement: ${details.measurements || "—"}`,
-          `Description: ${details.description || "—"}`,
-          `CAD required: ${details.cadRequired ? "yes" : "no"}`,
-          `Photo readiness: ${photoReadinessLabel(details.photoReadiness)}`,
-          `Photo assessment confidence: ${details.photoAssessmentConfidence || "—"}`,
-          details.photoMissingItems?.length
-            ? `Missing items: ${details.photoMissingItems.join("; ")}`
-            : null,
-          details.cadBrief ? `CAD brief: ${details.cadBrief}` : null,
-        ]
-      : []),
+    "Quick actions:",
+    photoLink ? `- Open photos: ${photoLink}` : null,
+    `- Open admin dashboard: ${adminLink}`,
     "",
-    `Notes: ${details.notes || "—"}`,
-    "",
-    actionHint(details),
-    details.confirmationYesUrl ? `Accept estimate: ${details.confirmationYesUrl}` : null,
-    details.confirmationNoUrl ? `Reject estimate: ${details.confirmationNoUrl}` : null,
-    details.confirmationYesUrl ? "If accepted, this moves to awaiting_final_details and a checklist email is sent." : null,
+    "Next step: Review photos and decide:",
+    "- proceed with CAD",
+    "- ask for more details",
+    "- reject",
   ]
     .filter(Boolean)
     .join("\n");
@@ -349,92 +289,47 @@ function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
   const bg = "#f8fafc";
   const card = "#ffffff";
   const border = "#e2e8f0";
+  const adminLink = details.adminLink || "/admin/quotes";
+  const photoLink = primaryPhotoLink(details);
+  const vehicle = vehicleLabel(details);
+  const summary = summaryBullets(details);
 
   return `
-    <div style="margin:0;padding:24px;background:${bg};font-family:Arial,sans-serif;color:#0f172a;line-height:1.5">
+    <div style="margin:0;padding:20px;background:${bg};font-family:Arial,sans-serif;color:#0f172a;line-height:1.45">
       <div style="max-width:640px;margin:0 auto">
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <div style="display:inline-block;margin:0 0 12px;padding:6px 10px;border-radius:999px;background:#e0f2fe;color:#0c4a6e;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Internal review</div>
-          <h1 style="margin:0 0 8px;font-size:28px;line-height:1.2">New custom part request</h1>
-          <p style="margin:0;color:#475569;font-size:15px">A new intake has been submitted and is ready for review.</p>
-        </div>
+        <div style="padding:18px 20px;background:${card};border:1px solid ${border};border-radius:18px">
+          <div style="display:inline-block;margin:0 0 10px;padding:5px 10px;border-radius:999px;background:#e0f2fe;color:#0c4a6e;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">New part request</div>
+          <h1 style="margin:0 0 6px;font-size:24px;line-height:1.15">New part request</h1>
+          <p style="margin:0 0 14px;color:#475569;font-size:14px">Fast scan: decide in under 10 seconds.</p>
 
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 16px;font-size:18px">Customer</h2>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-            ${renderDetailRow("Name", details.name)}
-            ${renderDetailRow("Email", details.email)}
-            ${renderDetailRow("Phone", details.phone || "—")}
-            ${renderDetailRow("Company", details.companyName || "—")}
-          </table>
-        </div>
-
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 16px;font-size:18px">Material / quantity</h2>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-            ${renderDetailRow("Material", details.material)}
-            ${renderDetailRow("Quantity", String(details.quantity))}
-          </table>
-        </div>
-
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 16px;font-size:18px">Stage / routing</h2>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-            ${renderDetailRow("Stage", stageLabel(details.stage))}
-            ${renderDetailRow("Manufacturing type", manufacturingTypeLabel(details.manufacturingType))}
-            ${renderDetailRow("Routing decision", routingLabel(details.routingDecision))}
-          </table>
-        </div>
-
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 16px;font-size:18px">Rough estimate</h2>
-          <div style="font-size:28px;font-weight:800;color:#0f172a">${escapeHtml(
-            details.estimate ? `£${details.estimate.min_price}–£${details.estimate.max_price}` : "—"
-          )}</div>
-          <div style="margin-top:8px;color:#475569;font-size:14px">Confidence: ${escapeHtml(details.estimate?.confidence || "—")}</div>
-          <div style="margin-top:10px;color:#334155;font-size:14px">${escapeHtml(renderEstimateSummary(details))}</div>
-          <div style="margin-top:10px;color:#64748b;font-size:14px">${escapeHtml(details.estimate?.disclaimer || "")}</div>
-        </div>
-
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 16px;font-size:18px">Uploads</h2>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-            ${renderDetailRow("File uploaded", details.hasFile ? "Yes" : "No")}
-            ${renderDetailRow("Photos uploaded", details.hasPhotos ? "Yes" : "No")}
-          </table>
-          ${details.fileUrls?.length || details.photoUrls?.length ? `
-            <div style="margin-top:16px;padding-top:16px;border-top:1px solid ${border}">
-              ${details.fileUrls?.length ? `<div style="margin:0 0 12px"><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">File links</div>${renderLinkList(details.fileUrls)}</div>` : ""}
-              ${details.photoUrls?.length ? `<div><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Photo links</div>${renderLinkList(details.photoUrls)}</div>` : ""}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 14px">
+            <div>
+              <div style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Customer</div>
+              <div style="color:#0f172a;font-size:14px;font-weight:600">${escapeHtml(details.name)}</div>
+              <div style="color:#475569;font-size:14px">${escapeHtml(details.email)}</div>
             </div>
-          ` : ""}
-        </div>
-
-        ${details.hasPhotos ? `
-          <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-            <h2 style="margin:0 0 16px;font-size:18px">Photo / CAD section</h2>
-            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-              ${renderDetailRow("Measurement", details.measurements || "—")}
-              ${renderDetailRow("Description", details.description || "—")}
-              ${renderDetailRow("CAD required", details.cadRequired ? "Yes" : "No")}
-              ${renderDetailRow("Photo readiness", photoReadinessLabel(details.photoReadiness))}
-              ${renderDetailRow("Assessment confidence", details.photoAssessmentConfidence || "—")}
-              ${renderDetailRow("Missing items", details.photoMissingItems?.join("; ") || "—")}
-            </table>
-            ${details.cadBrief ? `<div style="margin-top:16px;padding:16px;background:#f8fafc;border:1px solid ${border};border-radius:12px"><div style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">CAD brief</div><div style="color:#334155;font-size:14px">${escapeHtml(details.cadBrief)}</div></div>` : ""}
+            <div>
+              <div style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Part</div>
+              <div style="color:#0f172a;font-size:14px;font-weight:600;line-height:1.35">${escapeHtml(partSummary(details))}</div>
+              ${vehicle ? `<div style="color:#475569;font-size:13px;margin-top:3px">Vehicle: ${escapeHtml(vehicle)}</div>` : ""}
+            </div>
           </div>
-        ` : ""}
 
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 12px;font-size:18px">Notes</h2>
-          <div style="padding:16px;background:#f8fafc;border:1px solid ${border};border-radius:12px;white-space:pre-wrap;color:#334155;font-size:14px">${escapeHtml(details.notes || "No notes provided.")}</div>
-        </div>
+          <div style="margin:0 0 14px;padding:12px 14px;background:#f8fafc;border:1px solid ${border};border-radius:14px">
+            <div style="color:#64748b;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Summary</div>
+            <ul style="margin:0;padding:0 0 0 18px;color:#334155;font-size:14px;line-height:1.45">
+              ${summary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+            </ul>
+          </div>
 
-        <div style="margin:0 0 16px;padding:24px;background:${card};border:1px solid ${border};border-radius:16px">
-          <h2 style="margin:0 0 12px;font-size:18px">Next action</h2>
-          <div style="display:inline-block;padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;color:#1d4ed8;font-weight:600">${escapeHtml(actionHint(details))}</div>
-          <p style="margin:12px 0 0;color:#475569;font-size:14px">If accepted, this moves to awaiting final details and triggers a checklist email.</p>
-          ${renderActionButtons(details.confirmationYesUrl, details.confirmationNoUrl)}
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px">
+            ${photoLink ? `<a href="${escapeHtml(photoLink)}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#0f766e;color:#fff;text-decoration:none;font-weight:700;font-size:14px">Open photos</a>` : ""}
+            <a href="${escapeHtml(adminLink)}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#ffffff;color:#334155;text-decoration:none;font-weight:700;font-size:14px;border:1px solid ${border}">Open admin dashboard</a>
+          </div>
+
+          <div style="padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;color:#1d4ed8;font-weight:600;font-size:14px">
+            Review photos and decide: proceed with CAD, ask for more details, or reject.
+          </div>
         </div>
       </div>
     </div>
@@ -458,7 +353,7 @@ export async function sendQuoteNotifications(details: QuoteNotificationDetails) 
     tasks.push(
       sendResendEmail({
         to: internalEmail,
-        subject: "New custom part request",
+        subject: "New part request",
         text: internalQuoteEmailText(details),
         html: internalQuoteEmailHtml(details),
       })

@@ -459,6 +459,9 @@ export async function POST(req: Request) {
         companyName: quote.companyName || undefined,
         phone: quote.phone || undefined,
         notes: quote.notes || undefined,
+        vehicleMake: quote.vehicle_make || undefined,
+        vehicleModel: quote.vehicle_model || undefined,
+        vehicleYear: quote.vehicle_year || undefined,
         material: quote.material,
         complexity: quote.complexity,
         volumeCm3: quote.volume_cm3,
@@ -483,6 +486,7 @@ export async function POST(req: Request) {
         estimate,
         confirmationYesUrl: yesUrl ?? undefined,
         confirmationNoUrl: noUrl ?? undefined,
+        adminLink: `${getAppBaseUrl()}/admin/quotes`,
       }).catch((notificationError) => {
         console.error("EMAIL NOTIFICATION ERROR:", notificationError);
       });
