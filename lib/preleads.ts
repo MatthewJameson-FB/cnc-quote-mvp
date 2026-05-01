@@ -87,6 +87,16 @@ type MonitorResult = {
   savedToJson: boolean;
   emailed: boolean;
   leads: Prelead[];
+  searches_used: number;
+  fetched: number;
+  sent_to_ai: number;
+  accepted: number;
+  inserted: number;
+  duplicates: number;
+  skipped_budget: number;
+  quota_exhausted: boolean;
+  timestamp: string;
+  top_accepted_titles: string[];
 };
 
 type QueryRunStats = {
@@ -105,6 +115,7 @@ type QueryHealthEntry = {
   lastLowQualityOnly: boolean;
   zeroAcceptedStreak: number;
   lastAcceptedCount: number;
+  disabled: boolean;
 };
 
 type QueryHealthState = {
@@ -3048,6 +3059,7 @@ async function loadQueryHealthState(): Promise<QueryHealthState> {
             lastLowQualityOnly: Boolean(entry?.lastLowQualityOnly),
             zeroAcceptedStreak: Number(entry?.zeroAcceptedStreak ?? 0),
             lastAcceptedCount: Number(entry?.lastAcceptedCount ?? 0),
+            disabled: Boolean(entry?.disabled),
           },
         ])
       ),
@@ -3096,6 +3108,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   const seenCandidateUrls = new Set<string>();
   let duplicateCandidatesSkipped = 0;
   let totalFetchedCandidates = 0;
+  let searchesUsed = 0;
+  let skippedBudget = 0;
+  let quotaExhausted = false;
   const queryStats = new Map<string, QueryRunStats>();
 
   for (const adapter of adapters) {
@@ -3105,6 +3120,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       const candidates = await adapter.fetchCandidates();
       totalFetchedCandidates += candidates.length;
       logger.info(`${adapter.name}: fetched ${candidates.length} candidates`);
+
+      const adapterMeta = adapter.getRunMeta?.();
+      searchesUsed += adapterMeta?.searchesUsed ?? 0;
+      skippedBudget += adapterMeta?.skippedBudget ?? 0;
+      quotaExhausted = quotaExhausted || Boolean(adapterMeta?.quotaExhausted);
 
       for (const candidate of candidates) {
         if (candidate.query_used?.trim()) {
@@ -3666,9 +3686,10 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
     for (const [query, stats] of queryStats.entries()) {
       const lowQualityOnly = stats.fetched > 0 && stats.lowQualitySignalCount === stats.fetched;
-      const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false, zeroAcceptedStreak: 0, lastAcceptedCount: 0 };
+      const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false, zeroAcceptedStreak: 0, lastAcceptedCount: 0, disabled: false };
       const lowQualityStreak = lowQualityOnly ? previous.lowQualityStreak + 1 : 0;
       const zeroAcceptedStreak = stats.aiAccepted === 0 ? previous.zeroAcceptedStreak + 1 : 0;
+      const disabled = lowQualityStreak >= 3 || zeroAcceptedStreak >= 3;
 
       queryHealth.queries[query] = {
         lowQualityStreak,
@@ -3676,6 +3697,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         lastLowQualityOnly: lowQualityOnly,
         zeroAcceptedStreak,
         lastAcceptedCount: stats.aiAccepted,
+        disabled,
       };
       queryHealthChanged = true;
 
@@ -3683,7 +3705,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         `query stats: fetched=${stats.fetched} sent_to_ai=${stats.sentToAi} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} duplicates=${stats.duplicates} low_quality_only=${lowQualityOnly ? "yes" : "no"} zero_accepted_streak=${zeroAcceptedStreak} query=${query}`
       );
 
-      if ((lowQualityOnly && lowQualityStreak >= 3) || zeroAcceptedStreak >= 3) {
+      if (disabled) {
         logger.warn(`low-yield query: low_quality_streak=${lowQualityStreak} zero_accepted_streak=${zeroAcceptedStreak} query=${query}`);
       }
     }
@@ -3719,6 +3741,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     emailed = await sendPreleadSummaryEmail(candidateLeads);
   }
 
+  const topAcceptedTitles = leads.slice(0, 5).map((lead) => lead.title);
+  const acceptedCount = useAiPipeline ? aiAcceptedCount : leads.length;
+
   return {
     scanned: adapters.length,
     qualifying: leads.length,
@@ -3726,6 +3751,16 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     savedToJson,
     emailed,
     leads,
+    searches_used: searchesUsed,
+    fetched: totalFetchedCandidates,
+    sent_to_ai: aiCandidatesSent,
+    accepted: acceptedCount,
+    inserted: savedToSupabase,
+    duplicates: duplicateCandidatesSkipped + duplicateCandidatesSkippedAfterAi,
+    skipped_budget: skippedBudget,
+    quota_exhausted: quotaExhausted,
+    timestamp: new Date().toISOString(),
+    top_accepted_titles: topAcceptedTitles,
   };
 }
 

@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/preleads",
+      "path": "/api/cron/find-preleads",
       "schedule": "0 8 * * *"
     }
   ]

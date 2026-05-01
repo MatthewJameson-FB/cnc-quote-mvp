@@ -15,6 +15,11 @@ export type PreleadAdapter = {
   name: string;
   enabled: boolean;
   fetchCandidates: () => Promise<RawPreleadCandidate[]>;
+  getRunMeta?: () => {
+    searchesUsed: number;
+    skippedBudget: number;
+    quotaExhausted: boolean;
+  };
 };
 
 export type AdapterLogger = {

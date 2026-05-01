@@ -1,4 +1,10 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
+
+const ROOT = process.cwd();
+const DATA_DIR = `${ROOT}/data`;
+const QUERY_HEALTH_PATH = `${DATA_DIR}/prelead-query-health.json`;
+const SERPAPI_BUDGET_PATH = `${DATA_DIR}/serpapi-budget.json`;
 
 type SearchRecency = "day" | "week" | "month" | "any";
 
@@ -28,6 +34,31 @@ const ROTATING_QUERIES: DiscoveryQuery[] = [
 
 const MAX_DISCOVERY_QUERIES = 10;
 
+type QueryHealthEntry = {
+  disabled?: boolean;
+  zeroAcceptedStreak?: number;
+  lowQualityStreak?: number;
+};
+
+type QueryHealthState = {
+  version: 1;
+  queries: Record<string, QueryHealthEntry>;
+};
+
+type BudgetState = {
+  date: string;
+  usedQueries: number;
+  updatedAt: string;
+};
+
+type DiscoveryQueryPlan = DiscoveryQuery & { disabled: boolean };
+
+type RunMeta = {
+  searchesUsed: number;
+  skippedBudget: number;
+  quotaExhausted: boolean;
+};
+
 function isTruthy(value: string | undefined) {
   return Boolean(value && /^(1|true|yes|on)$/i.test(value.trim()));
 }
@@ -54,16 +85,91 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getDaySeed() {
   const today = new Date();
   return Math.floor(today.getTime() / 86400000);
 }
 
-function getDiscoveryQueries() {
+function getBudgetInt(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+async function loadJson<T>(filePath: string, fallback: T): Promise<T> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+async function saveJson(filePath: string, value: unknown) {
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(filePath, JSON.stringify(value, null, 2) + "\n", "utf8");
+}
+
+async function loadQueryHealthState(): Promise<QueryHealthState> {
+  const parsed = await loadJson<QueryHealthState | null>(QUERY_HEALTH_PATH, null);
+  if (!parsed || parsed.version !== 1 || !parsed.queries || typeof parsed.queries !== "object") {
+    return { version: 1, queries: {} };
+  }
+
+  return parsed;
+}
+
+async function loadBudgetState(): Promise<BudgetState> {
+  const parsed = await loadJson<BudgetState | null>(SERPAPI_BUDGET_PATH, null);
+  const today = todayKey();
+  if (!parsed || parsed.date !== today) {
+    return { date: today, usedQueries: 0, updatedAt: new Date().toISOString() };
+  }
+
+  return {
+    date: parsed.date,
+    usedQueries: Number(parsed.usedQueries ?? 0),
+    updatedAt: parsed.updatedAt ?? new Date().toISOString(),
+  };
+}
+
+async function saveBudgetState(state: BudgetState) {
+  await saveJson(SERPAPI_BUDGET_PATH, state);
+}
+
+async function getDiscoveryQueries(): Promise<{ queries: DiscoveryQueryPlan[]; runBudget: number; skippedBudget: number; quotaExhausted: boolean }> {
   const rotatingSlots = Math.max(0, MAX_DISCOVERY_QUERIES - CORE_QUERIES.length);
   const start = ROTATING_QUERIES.length > 0 ? getDaySeed() % ROTATING_QUERIES.length : 0;
   const rotating = Array.from({ length: rotatingSlots }, (_, index) => ROTATING_QUERIES[(start + index) % ROTATING_QUERIES.length]);
-  return [...CORE_QUERIES, ...rotating];
+  const planned = [...CORE_QUERIES, ...rotating].slice(0, MAX_DISCOVERY_QUERIES);
+  const queryHealth = await loadQueryHealthState();
+  const budgetState = await loadBudgetState();
+  const dailyTarget = getBudgetInt("SERPAPI_DAILY_TARGET", MAX_DISCOVERY_QUERIES);
+  const dailyMax = getBudgetInt("SERPAPI_DAILY_MAX", 15);
+  const remainingBudget = Math.max(0, dailyMax - budgetState.usedQueries);
+  const runBudget = Math.min(planned.length, dailyTarget, remainingBudget);
+  const quotaExhausted = remainingBudget <= 0;
+
+  const budgeted = planned.map((entry) => {
+    const health = queryHealth.queries[entry.query];
+    return {
+      ...entry,
+      disabled: Boolean(health?.disabled || (health?.zeroAcceptedStreak ?? 0) >= 3 || (health?.lowQualityStreak ?? 0) >= 3),
+    };
+  });
+
+  const active = budgeted.filter((entry) => !entry.disabled);
+  const disabledSkipped = budgeted.length - active.length;
+
+  return {
+    queries: active,
+    runBudget: Math.min(active.length, runBudget),
+    skippedBudget: disabledSkipped,
+    quotaExhausted,
+  };
 }
 
 function recencyToTbs(recency: SearchRecency) {
@@ -171,6 +277,12 @@ async function fetchSerpApiQuery(query: string, apiKey: string, recency: SearchR
 
   const body = await response.text().catch(() => "");
 
+  if (response.status === 429) {
+    const error = new Error(`SerpAPI quota exhausted: HTTP 429${body ? ` - ${body}` : ""}`);
+    (error as Error & { quotaExhausted?: boolean }).quotaExhausted = true;
+    throw error;
+  }
+
   if (!response.ok) {
     throw new Error(`SerpAPI request failed: HTTP ${response.status}${body ? ` - ${body}` : ""}`);
   }
@@ -204,17 +316,37 @@ export function createSerpapiAdapter(logger?: AdapterLogger): PreleadAdapter {
   return {
     name: "serpapi",
     enabled: true,
+    getRunMeta: () => lastRunMeta,
     async fetchCandidates() {
       const all: RawPreleadCandidate[] = [];
       let failedQueries = 0;
-      const queries = getDiscoveryQueries();
+      let quotaExhausted = false;
+      let searchesUsed = 0;
+      let skippedBudget = 0;
+      const { queries, runBudget, skippedBudget: plannedSkipped, quotaExhausted: budgetQuotaExhausted } = await getDiscoveryQueries();
+      skippedBudget += plannedSkipped;
+      quotaExhausted = quotaExhausted || budgetQuotaExhausted;
 
       if (isTruthy(process.env.PRELEAD_DEBUG)) {
         console.log(`[preleads] discovery queries: ${queries.length}/${MAX_DISCOVERY_QUERIES}`);
       }
       logger?.debug("active query set: scarcity_first_automotive");
 
-      for (const { query, recency, kind } of queries) {
+      for (const [index, plan] of queries.entries()) {
+        if (index >= runBudget) {
+          skippedBudget += queries.length - index;
+          break;
+        }
+
+        const { query, recency, kind, disabled } = plan;
+        if (disabled) {
+          skippedBudget += 1;
+          logger?.debug(`skipping disabled query: ${query}`);
+          continue;
+        }
+
+        searchesUsed += 1;
+
         try {
           logger?.debug(`serpapi query (${kind}, ${recency}): ${query}`);
           const results = await fetchSerpApiQuery(query, apiKey, recency);
@@ -242,6 +374,13 @@ export function createSerpapiAdapter(logger?: AdapterLogger): PreleadAdapter {
             });
           }
         } catch (error) {
+          const quotaFlag = Boolean((error as { quotaExhausted?: boolean } | null)?.quotaExhausted);
+          if (quotaFlag) {
+            quotaExhausted = true;
+            logger?.warn(`serpapi quota exhausted: ${query}`);
+            break;
+          }
+
           failedQueries += 1;
           const statusOrError = error instanceof Error ? error.message : String(error);
           logger?.warn(`serpapi query failed: ${query} ${statusOrError}`);
@@ -250,11 +389,20 @@ export function createSerpapiAdapter(logger?: AdapterLogger): PreleadAdapter {
         await sleep(500);
       }
 
-      if (failedQueries === queries.length) {
+      lastRunMeta = { searchesUsed, skippedBudget, quotaExhausted };
+
+      if (queries.length > 0 && failedQueries === queries.length && !quotaExhausted) {
         throw new Error("All SerpAPI queries failed");
       }
+
+      const budgetState = await loadBudgetState();
+      budgetState.usedQueries += searchesUsed;
+      budgetState.updatedAt = new Date().toISOString();
+      await saveBudgetState(budgetState);
 
       return all;
     },
   };
 }
+
+let lastRunMeta: RunMeta = { searchesUsed: 0, skippedBudget: 0, quotaExhausted: false };

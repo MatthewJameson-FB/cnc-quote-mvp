@@ -609,6 +609,46 @@ export async function sendPreleadSummaryEmail(preleads: PreleadSummaryItem[]) {
   return true;
 }
 
+export async function sendCronPreleadSummaryEmail(details: {
+  inserted: number;
+  accepted: number;
+  topAcceptedTitles: string[];
+  adminLink: string;
+}) {
+  const to = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
+  if (!to) return false;
+
+  const subject = `Flangie found ${details.inserted} new preleads`;
+  const titles = details.topAcceptedTitles.slice(0, 5);
+  const text = [
+    `Inserted: ${details.inserted}`,
+    `Accepted: ${details.accepted}`,
+    "",
+    "Top accepted titles:",
+    ...titles.map((title, index) => `${index + 1}. ${title}`),
+    "",
+    `Admin: ${details.adminLink}`,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111;max-width:720px;margin:0 auto">
+      <h2 style="margin:0 0 12px">Flangie found ${details.inserted} new preleads</h2>
+      <p style="margin:0 0 8px">Inserted: <strong>${details.inserted}</strong></p>
+      <p style="margin:0 0 16px">Accepted: <strong>${details.accepted}</strong></p>
+      <div style="margin:0 0 16px">
+        <div style="font-weight:700;margin-bottom:8px">Top accepted titles</div>
+        <ol style="margin:0;padding-left:20px">
+          ${titles.map((title) => `<li>${escapeHtml(title)}</li>`).join("")}
+        </ol>
+      </div>
+      <p style="margin:0"><a href="${escapeHtml(details.adminLink)}">Open admin preleads</a></p>
+    </div>
+  `;
+
+  await sendResendEmail({ to, subject, text, html });
+  return true;
+}
+
 function getInboundPartAlertRecipient() {
   const direct = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
   if (direct) return direct;
