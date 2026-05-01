@@ -421,7 +421,6 @@ export async function saveQuoteWorkbench(
         model_specifics: modelSpecifics,
         description,
         issue_type: issueType,
-        size_estimate: sizeEstimate,
       }),
     };
 

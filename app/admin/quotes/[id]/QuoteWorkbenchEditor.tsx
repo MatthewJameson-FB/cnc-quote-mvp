@@ -150,7 +150,6 @@ export default function QuoteWorkbenchEditor({ quote }: { quote: QuoteRecord }) 
         model_specifics: quote.model_specifics,
         description: quote.description,
         issue_type: quote.issue_type,
-        size_estimate: quote.size_estimate,
       }),
     [quote]
   );

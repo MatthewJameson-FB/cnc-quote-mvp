@@ -244,7 +244,6 @@ export async function POST(req: Request) {
       model_specifics: modelSpecifics,
       description,
       issue_type: issueType,
-      size_estimate: sizeEstimate,
     });
 
     if (isDebugEnabled()) {
@@ -342,6 +341,7 @@ export async function POST(req: Request) {
       email: cleanString(formData.get("email")),
       companyName: cleanString(formData.get("companyName")),
       phone: cleanString(formData.get("phone")),
+      description,
       notes: buildIntakeNotes({
         existingNotes: notes,
         preleadId,
@@ -376,6 +376,12 @@ export async function POST(req: Request) {
       status: defaultQuoteStatus,
     };
 
+    if (isDebugEnabled()) {
+      console.log(
+        `[preleads:debug] intake_fields vehicle_make=${vehicleMake || ""} vehicle_model=${vehicleModel || ""} vehicle_year=${vehicleYear || ""} model_specifics=${modelSpecifics || ""} issue_type=${issueType || ""} size_estimate=${sizeEstimate || ""} description_present=${description ? "yes" : "no"} search_context=${searchContext || ""}`
+      );
+    }
+
     const insertQuote = async (row: typeof quote) => {
       return supabase.from("quotes").insert([row]).select("id").single();
     };
@@ -384,6 +390,7 @@ export async function POST(req: Request) {
 
     if (error && isMissingColumnError(error)) {
       const strippedQuote = { ...quote } as Record<string, unknown>;
+      delete strippedQuote.description;
       delete strippedQuote.vehicle_make;
       delete strippedQuote.vehicle_model;
       delete strippedQuote.vehicle_year;
@@ -391,6 +398,7 @@ export async function POST(req: Request) {
       delete strippedQuote.issue_type;
       delete strippedQuote.size_estimate;
       delete strippedQuote.search_context;
+      delete strippedQuote.quote_message;
       ({ data: insertedQuote, error } = await insertQuote(strippedQuote as typeof quote));
     }
 
@@ -403,6 +411,10 @@ export async function POST(req: Request) {
     }
 
     const quoteId = String(insertedQuote?.id ?? "");
+    if (isDebugEnabled()) {
+      console.log(`[preleads:debug] saved_quote_id=${quoteId}`);
+      console.log(`[preleads:debug] saved_search_context=${searchContext || ""}`);
+    }
     const estimateRange = `£${estimate.min_price}–£${estimate.max_price} ${estimate.currency}`;
 
     if (quoteId) {
