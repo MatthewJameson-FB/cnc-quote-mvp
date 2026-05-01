@@ -378,6 +378,13 @@ export async function saveQuoteWorkbench(
     const issueType = cleanString(formData.get("issue_type")) || null;
     const sizeEstimate = cleanString(formData.get("size_estimate")) || null;
     const description = cleanString(formData.get("description")) || null;
+    const overallWidth = cleanString(formData.get("overall_width")) || null;
+    const overallHeight = cleanString(formData.get("overall_height")) || null;
+    const depthThickness = cleanString(formData.get("depth_thickness")) || null;
+    const holeSpacing = cleanString(formData.get("hole_spacing")) || null;
+    const clipSpacing = cleanString(formData.get("clip_spacing")) || null;
+    const scaleReferencePhoto = cleanString(formData.get("scale_reference_photo")) || null;
+    const fitmentNotes = cleanString(formData.get("fitment_notes")) || null;
 
     if (manufacturable && !allowedWorkbenchManufacturable.has(manufacturable)) {
       return { status: "error", message: null, error: "Invalid manufacturable value." };
@@ -400,6 +407,13 @@ export async function saveQuoteWorkbench(
       issue_type: issueType,
       size_estimate: sizeEstimate,
       description,
+      overall_width: overallWidth,
+      overall_height: overallHeight,
+      depth_thickness: depthThickness,
+      hole_spacing: holeSpacing,
+      clip_spacing: clipSpacing,
+      scale_reference_photo: scaleReferencePhoto,
+      fitment_notes: fitmentNotes,
       part_type: isEmpty(partType) ? null : partType,
       manufacturable: isEmpty(manufacturable) ? null : manufacturable,
       cad_required: isEmpty(cadRequired) ? null : cadRequired,

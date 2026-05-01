@@ -22,6 +22,13 @@ type QuoteRecord = {
   issue_type: string | null;
   size_estimate: string | null;
   description: string | null;
+  overall_width: string | null;
+  overall_height: string | null;
+  depth_thickness: string | null;
+  hole_spacing: string | null;
+  clip_spacing: string | null;
+  scale_reference_photo: string | null;
+  fitment_notes: string | null;
   search_context: string | null;
   file_path: string | null;
   part_type: string | null;

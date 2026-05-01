@@ -20,6 +20,13 @@ type QuoteRecord = {
   issue_type: string | null;
   size_estimate: string | null;
   description: string | null;
+  overall_width: string | null;
+  overall_height: string | null;
+  depth_thickness: string | null;
+  hole_spacing: string | null;
+  clip_spacing: string | null;
+  scale_reference_photo: string | null;
+  fitment_notes: string | null;
   search_context: string | null;
   fileUrl: string | null;
   photoUrls: string[];
@@ -96,6 +103,27 @@ function buildAskMoreInfoMessage(name: string) {
     "- the car make/model/year if you know it",
     "",
     "Once I have that, I’ll take a proper look.",
+    "",
+    "Thanks,",
+    "Flangie",
+  ].join("\n");
+}
+
+function buildAskForMeasurementsMessage(name: string) {
+  return [
+    `Hi ${name || "there"},`,
+    "",
+    "Thanks for sending this over.",
+    "",
+    "This looks like it may be possible, but for a good fit I’d need a few measurements:",
+    "",
+    "- overall width",
+    "- overall height",
+    "- thickness/depth",
+    "- spacing between any holes or clips",
+    "- one photo with a ruler or coin next to the part",
+    "",
+    "Once I have those, I can take a proper look and confirm the next step.",
     "",
     "Thanks,",
     "Flangie",
@@ -187,6 +215,11 @@ export default function QuoteWorkbenchEditor({ quote }: { quote: QuoteRecord }) 
     markMessage(buildAskMoreInfoMessage(customerName));
   };
 
+  const generateMeasurements = () => {
+    const customerName = readFormValue("customer_name") || quote.name || "there";
+    markMessage(buildAskForMeasurementsMessage(customerName));
+  };
+
   const copyMessage = async () => {
     await navigator.clipboard.writeText(message);
     setCopyState("Copied message.");
@@ -230,6 +263,31 @@ export default function QuoteWorkbenchEditor({ quote }: { quote: QuoteRecord }) 
           <div>
             <p className={labelClass()}>Size estimate</p>
             <input name="size_estimate" defaultValue={quote.size_estimate || ""} className={inputClass()} />
+          </div>
+
+          <div className="space-y-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="font-semibold text-slate-800">Helpful measurements if you have them:</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>overall width</li>
+              <li>overall height</li>
+              <li>thickness/depth</li>
+              <li>hole or clip spacing</li>
+              <li>photo with ruler or coin for scale</li>
+            </ul>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><p className={labelClass()}>Overall width</p><input name="overall_width" defaultValue={quote.overall_width || ""} className={inputClass()} /></div>
+            <div><p className={labelClass()}>Overall height</p><input name="overall_height" defaultValue={quote.overall_height || ""} className={inputClass()} /></div>
+            <div><p className={labelClass()}>Depth / thickness</p><input name="depth_thickness" defaultValue={quote.depth_thickness || ""} className={inputClass()} /></div>
+            <div><p className={labelClass()}>Hole spacing</p><input name="hole_spacing" defaultValue={quote.hole_spacing || ""} className={inputClass()} /></div>
+            <div><p className={labelClass()}>Clip spacing</p><input name="clip_spacing" defaultValue={quote.clip_spacing || ""} className={inputClass()} /></div>
+            <div><p className={labelClass()}>Scale reference photo</p><input name="scale_reference_photo" defaultValue={quote.scale_reference_photo || ""} className={inputClass()} /></div>
+          </div>
+
+          <div>
+            <p className={labelClass()}>Fitment notes</p>
+            <textarea name="fitment_notes" defaultValue={quote.fitment_notes || ""} rows={4} className={`${inputClass()} min-h-[120px]`} />
           </div>
 
           <div>
@@ -279,6 +337,7 @@ export default function QuoteWorkbenchEditor({ quote }: { quote: QuoteRecord }) 
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={generateRefined} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Generate refined quote message</button>
             <button type="button" onClick={generateMoreInfo} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Generate ask-for-more-info message</button>
+            <button type="button" onClick={generateMeasurements} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Ask for measurements</button>
             <button type="button" onClick={copyMessage} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Copy message</button>
           </div>
         </div>

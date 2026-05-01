@@ -333,7 +333,7 @@ export default function QuoteIntakeForm() {
                   <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#355894]">Start here</p>
                   <div className="h-px w-20 bg-gradient-to-r from-[#355894] via-[#355894] to-[#f05a3a]" />
                   <h2 className="pt-2 text-3xl font-black tracking-tight text-slate-950">Upload photos or a file</h2>
-                  <p className="text-base leading-7 text-slate-600">Photos are enough to start.</p>
+                  <p className="text-base leading-7 text-slate-600">Photos are enough to start. Measurements may be needed before we can recreate the part.</p>
                 </div>
 
                 <label className="grid gap-2">
@@ -524,6 +524,17 @@ export default function QuoteIntakeForm() {
                         placeholder="Optional"
                       />
                     </label>
+
+                    <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+                      <p className="font-semibold text-slate-800">Helpful measurements if you have them:</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        <li>overall width</li>
+                        <li>overall height</li>
+                        <li>thickness/depth</li>
+                        <li>hole or clip spacing</li>
+                        <li>photo with ruler or coin for scale</li>
+                      </ul>
+                    </div>
 
                     <label className="grid gap-2">
                       <span className="text-sm font-medium text-slate-700">Notes</span>
