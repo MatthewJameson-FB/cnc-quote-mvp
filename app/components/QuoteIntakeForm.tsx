@@ -211,6 +211,16 @@ export default function QuoteIntakeForm() {
     setSubmitting(true);
 
     try {
+      console.log("submit payload", {
+        description,
+        vehicle_make: vehicleMake,
+        vehicle_model: vehicleModel,
+        vehicle_year: vehicleYear,
+        model_specifics: modelSpecifics,
+        issue_type: issueType,
+        size_estimate: sizeEstimate,
+      });
+
       const formData = new FormData();
       formData.append("name", name);
       formData.append("email", email);

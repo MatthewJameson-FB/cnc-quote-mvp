@@ -92,6 +92,22 @@ async function uploadAsset(
   return filePath;
 }
 
+async function saveQuoteMetadata(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  quoteId: string,
+  fields: Record<string, unknown>
+) {
+  for (const [field, value] of Object.entries(fields)) {
+    const { error } = await supabase.from("quotes").update({ [field]: value }).eq("id", quoteId);
+
+    if (error) {
+      console.warn(`[preleads:debug] quote metadata update failed field=${field} quote_id=${quoteId} error=${error.message}`);
+    } else if (isDebugEnabled()) {
+      console.log(`[preleads:debug] quote metadata saved field=${field} quote_id=${quoteId}`);
+    }
+  }
+}
+
 function estimateSummaryText(estimate: ReturnType<typeof estimateQuote>) {
   const cad = estimate.breakdown.cad
     ? `cad: £${estimate.breakdown.cad[0]}–£${estimate.breakdown.cad[1]}`
@@ -209,6 +225,16 @@ export async function POST(req: Request) {
     const modelSpecifics = readOptionalField(formData, "model_specifics");
     const issueType = readOptionalField(formData, "issue_type");
     const sizeEstimate = readOptionalField(formData, "size_estimate");
+
+    console.log("api quote received", {
+      description,
+      vehicle_make: vehicleMake,
+      vehicle_model: vehicleModel,
+      vehicle_year: vehicleYear,
+      model_specifics: modelSpecifics,
+      issue_type: issueType,
+      size_estimate: sizeEstimate,
+    });
     const quantity = Number(formData.get("quantity")) || 1;
     const hasFile = file instanceof File && file.size > 0 ? true : parseBoolean(formData.get("has_file"));
     const hasPhotos = photos.length > 0 ? true : parseBoolean(formData.get("has_photos"));
@@ -341,7 +367,6 @@ export async function POST(req: Request) {
       email: cleanString(formData.get("email")),
       companyName: cleanString(formData.get("companyName")),
       phone: cleanString(formData.get("phone")),
-      description,
       notes: buildIntakeNotes({
         existingNotes: notes,
         preleadId,
@@ -365,13 +390,6 @@ export async function POST(req: Request) {
       quote_low: Number(formData.get("quoteLow")) || 0,
       quote_high: Number(formData.get("quoteHigh")) || 0,
       quote_total: Number(formData.get("quoteTotal")) || 0,
-      vehicle_make: vehicleMake || null,
-      vehicle_model: vehicleModel || null,
-      vehicle_year: vehicleYear || null,
-      model_specifics: modelSpecifics || null,
-      issue_type: issueType || null,
-      size_estimate: sizeEstimate || null,
-      search_context: searchContext || null,
       file_path: primaryAssetPath,
       status: defaultQuoteStatus,
     };
@@ -390,15 +408,6 @@ export async function POST(req: Request) {
 
     if (error && isMissingColumnError(error)) {
       const strippedQuote = { ...quote } as Record<string, unknown>;
-      delete strippedQuote.description;
-      delete strippedQuote.vehicle_make;
-      delete strippedQuote.vehicle_model;
-      delete strippedQuote.vehicle_year;
-      delete strippedQuote.model_specifics;
-      delete strippedQuote.issue_type;
-      delete strippedQuote.size_estimate;
-      delete strippedQuote.search_context;
-      delete strippedQuote.quote_message;
       ({ data: insertedQuote, error } = await insertQuote(strippedQuote as typeof quote));
     }
 
@@ -416,6 +425,30 @@ export async function POST(req: Request) {
       console.log(`[preleads:debug] saved_search_context=${searchContext || ""}`);
     }
     const estimateRange = `£${estimate.min_price}–£${estimate.max_price} ${estimate.currency}`;
+
+    if (quoteId) {
+      console.log("quote saved", {
+        id: quoteId,
+        vehicle_make: vehicleMake || null,
+        vehicle_model: vehicleModel || null,
+        vehicle_year: vehicleYear || null,
+        model_specifics: modelSpecifics || null,
+        issue_type: issueType || null,
+        size_estimate: sizeEstimate || null,
+        search_context: searchContext || null,
+      });
+
+      await saveQuoteMetadata(supabase, quoteId, {
+        description,
+        vehicle_make: vehicleMake || null,
+        vehicle_model: vehicleModel || null,
+        vehicle_year: vehicleYear || null,
+        model_specifics: modelSpecifics || null,
+        issue_type: issueType || null,
+        size_estimate: sizeEstimate || null,
+        search_context: searchContext || null,
+      });
+    }
 
     if (quoteId) {
       const { error: commercialTrackingError } = await supabase
@@ -471,9 +504,9 @@ export async function POST(req: Request) {
         companyName: quote.companyName || undefined,
         phone: quote.phone || undefined,
         notes: quote.notes || undefined,
-        vehicleMake: quote.vehicle_make || undefined,
-        vehicleModel: quote.vehicle_model || undefined,
-        vehicleYear: quote.vehicle_year || undefined,
+        vehicleMake: vehicleMake || undefined,
+        vehicleModel: vehicleModel || undefined,
+        vehicleYear: vehicleYear || undefined,
         material: quote.material,
         complexity: quote.complexity,
         volumeCm3: quote.volume_cm3,

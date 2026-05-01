@@ -84,6 +84,17 @@ async function loadQuote(id: string): Promise<QuoteRecordWithAssets | null> {
     fileUrl = data?.signedUrl ?? null;
   }
 
+  console.log("quote workbench loaded", {
+    id: quote.id,
+    vehicle_make: quote.vehicle_make,
+    vehicle_model: quote.vehicle_model,
+    vehicle_year: quote.vehicle_year,
+    model_specifics: quote.model_specifics,
+    issue_type: quote.issue_type,
+    size_estimate: quote.size_estimate,
+    description: quote.description,
+  });
+
   return { ...quote, fileUrl, photoUrls };
 }
 
