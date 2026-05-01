@@ -238,10 +238,21 @@ const quantityPatterns = [
 const automotivePatterns = [
   /\bautomotive\b/i,
   /\bcar\b/i,
+  /\bvehicle\b/i,
+  /\bBMW\b/i,
+  /\bAudi\b/i,
+  /\bMercedes\b/i,
+  /\bVW\b/i,
+  /\bVolkswagen\b/i,
+  /\bFord\b/i,
+  /\bToyota\b/i,
+  /\bHonda\b/i,
   /\bmotorcycle\b/i,
   /\bclassic\b/i,
   /\brestoration\b/i,
   /\bprototype\b/i,
+  /\binterior\b/i,
+  /\btrim\b/i,
 ];
 const studentPatterns = [/\bstudent\b/i, /\bhomework\b/i, /\bassignment\b/i, /\bcoursework\b/i, /\bdissertation\b/i];
 const threeDPrintOnlyPatterns = [
@@ -253,10 +264,30 @@ const threeDPrintOnlyPatterns = [
   /\bhobby printer\b/i,
 ];
 const freeBudgetPatterns = [/\bfree\b/i, /\bno budget\b/i, /\bzero budget\b/i, /\bcheap as possible\b/i, /\bfor free\b/i, /\bdonate\b/i];
-const buyerProblemBoostPatterns = [/\bbroken\b/i, /\blost\b/i, /\bmissing\b/i, /\breplacement\b/i, /\bdiscontinued\b/i];
-const realWorldObjectBoostPatterns = [/\bcar\b/i, /\bvehicle\b/i, /\bappliance\b/i, /\bmachine\b/i, /\bwindow\b/i, /\bfurniture\b/i];
-const urgencyFrustrationBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\banywhere\b/i, /\bwhat do i do\b/i];
-const explicitIntentBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\bhow do i fix\b/i, /\blooking for\b/i, /\bwhere can i get\b/i, /\bwho can make\b/i];
+const buyerProblemBoostPatterns = [
+  /\bbroken\b/i,
+  /\blost\b/i,
+  /\bmissing\b/i,
+  /\breplacement\b/i,
+  /\bdiscontinued\b/i,
+  /\bbroken clip\b/i,
+  /\bsnapped clip\b/i,
+  /\bmissing trim\b/i,
+  /\bloose panel\b/i,
+];
+const realWorldObjectBoostPatterns = [/\bcar\b/i, /\bvehicle\b/i, /\bappliance\b/i, /\bmachine\b/i, /\bwindow\b/i, /\bfurniture\b/i, /\binterior\b/i, /\btrim\b/i];
+const urgencyFrustrationBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\banywhere\b/i, /\bwhat do i do\b/i, /\boem too expensive\b/i, /\bno replacement\b/i];
+const explicitIntentBoostPatterns = [
+  /\bcan(?:'|’)t find\b/i,
+  /\bneed\b/i,
+  /\bhow do i fix\b/i,
+  /\blooking for\b/i,
+  /\bwhere can i get\b/i,
+  /\bwho can make\b/i,
+  /\bneed replacement\b/i,
+  /\bmissing piece\b/i,
+  /\bbroken clip\b/i,
+];
 const stlOnlyReplySuppressionPatterns = [
   /\blooking for (?:an? )?(?:stl|cad|file)\b/i,
   /\bneed (?:an? )?(?:stl|cad|file)\b/i,
@@ -269,16 +300,29 @@ const nonManufacturableRepairPatterns = [
   /\binternal drum\b/i,
   /\bmotor\b/i,
   /\bengine\b/i,
+  /\bgearbox\b/i,
+  /\btransmission\b/i,
+  /\becu\b/i,
+  /\bsensor\b/i,
+  /\bwiring\b/i,
+  /\bbattery\b/i,
+  /\balternator\b/i,
   /\belectronics\b/i,
+  /\belectrical issue\b/i,
+  /\belectronics repair\b/i,
   /\bsensor\b/i,
   /\bcircuit\b/i,
   /\bpcb\b/i,
+  /\bsoftware issue\b/i,
+  /\bgeneric troubleshooting\b/i,
 ];
 const manufacturablePartExceptionPatterns = [
   /\bknob\b/i,
   /\bhandle\b/i,
   /\bclip\b/i,
   /\bbracket\b/i,
+  /\bpanel\b/i,
+  /\bmount\b/i,
   /\bcasing\b/i,
   /\bhousing\b/i,
   /\bcover\b/i,
@@ -287,17 +331,29 @@ const manufacturablePartExceptionPatterns = [
   /\btrim\b/i,
   /\blatch\b/i,
   /\bhinge\b/i,
-  /\bpanel\b/i,
-  /\bmount\b/i,
+  /\bmirror casing\b/i,
+  /\bbumper trim\b/i,
+  /\bgrille\b/i,
+  /\btrim piece\b/i,
 ];
 const applianceExteriorPartPatterns = [/\bappliance\b/i, /\bhandle\b/i, /\bknob\b/i, /\btrim\b/i, /\bcover\b/i, /\blid\b/i, /\bdial\b/i];
 const highValueObjectPatterns = [
+  /\bBMW\b/i,
+  /\bAudi\b/i,
+  /\bMercedes\b/i,
+  /\bVolkswagen\b/i,
+  /\bVW\b/i,
+  /\bFord\b/i,
+  /\bToyota\b/i,
+  /\bHonda\b/i,
   /\bcaravan\b/i,
   /\bmotorhome\b/i,
   /\bcampervan\b/i,
   /\bclassic car\b/i,
   /\bcar interior\b/i,
   /\bcar trim\b/i,
+  /\binterior trim\b/i,
+  /\bdashboard\b/i,
   /\bvan\b/i,
   /\bboat\b/i,
   /\bmachinery\b/i,
@@ -313,6 +369,7 @@ const highValueObjectPatterns = [
 ];
 const unavailablePartPatterns = [
   /\bcan(?:'|’)t find this part\b/i,
+  /\bcan't find part\b/i,
   /\bcannot find replacement\b/i,
   /\bmanufacturer does(?:n| not)['’]?t sell it\b/i,
   /\bdiscontinued\b/i,
@@ -321,6 +378,9 @@ const unavailablePartPatterns = [
   /\bno spare parts available\b/i,
   /\bdoes anyone know where to get this\b/i,
   /\bcan(?:'|’)t find replacement\b/i,
+  /\bno replacement\b/i,
+  /\boem too expensive\b/i,
+  /\bneed replacement\b/i,
 ];
 const usageBlockingPatterns = [
   /\bneed this to use it\b/i,
@@ -331,6 +391,10 @@ const usageBlockingPatterns = [
   /\bbroke off\b/i,
   /\bsnapped off\b/i,
   /\bmissing piece\b/i,
+  /\bbroken clip\b/i,
+  /\bsnapped clip\b/i,
+  /\bmissing trim\b/i,
+  /\bloose panel\b/i,
 ];
 const lowValueObjectPatterns = [
   /\bcheap item\b/i,
@@ -504,11 +568,17 @@ const fileSignalEntries: SignalEntry[] = [
 ];
 
 const physicalPartSignalEntries: SignalEntry[] = [
+  { label: "interior trim", pattern: /\binterior trim\b/i, weight: 0.2 },
+  { label: "dashboard", pattern: /\bdashboard\b/i, weight: 0.18 },
   { label: "bracket", pattern: /\bbracket\b/i, weight: 0.14 },
   { label: "spacer", pattern: /\bspacer\b/i, weight: 0.14 },
   { label: "plate", pattern: /\bplate\b/i, weight: 0.14 },
   { label: "housing", pattern: /\bhousing\b/i, weight: 0.14 },
   { label: "adapter", pattern: /\badapter\b/i, weight: 0.14 },
+  { label: "mirror casing", pattern: /\bmirror casing\b/i, weight: 0.18 },
+  { label: "bumper trim", pattern: /\bbumper trim\b/i, weight: 0.18 },
+  { label: "grille", pattern: /\bgrille\b/i, weight: 0.18 },
+  { label: "trim piece", pattern: /\btrim piece\b/i, weight: 0.18 },
   { label: "replacement part", pattern: /\breplacement part\b/i, weight: 0.18 },
   { label: "prototype", pattern: /\bprototype\b/i, weight: 0.14 },
   { label: "enclosure", pattern: /\benclosure\b/i, weight: 0.14 },
@@ -535,9 +605,16 @@ const needSignalEntries: SignalEntry[] = [
   { label: "looking for someone", pattern: /\blooking for (?:someone|a shop|a machinist|a fabricator|a maker|someone to make|someone who can make)\b/i, weight: 0.18 },
   { label: "can anyone make", pattern: /\bcan anyone make\b/i, weight: 0.2 },
   { label: "where can I get", pattern: /\bwhere can i get\b/i, weight: 0.18 },
+  { label: "can't find", pattern: /\bcan(?:'|’)t find\b/i, weight: 0.22 },
   { label: "quote", pattern: /\bquote\b/i, weight: 0.12 },
   { label: "broken", pattern: /\bbroken\b/i, weight: 0.1 },
+  { label: "missing", pattern: /\bmissing\b/i, weight: 0.14 },
+  { label: "need replacement", pattern: /\bneed replacement\b/i, weight: 0.18 },
+  { label: "broken clip", pattern: /\bbroken clip\b/i, weight: 0.2 },
+  { label: "missing trim", pattern: /\bmissing trim\b/i, weight: 0.2 },
+  { label: "loose panel", pattern: /\bloose panel\b/i, weight: 0.18 },
   { label: "discontinued", pattern: /\bdiscontinued\b/i, weight: 0.12 },
+  { label: "oem too expensive", pattern: /\boem too expensive\b/i, weight: 0.18 },
   { label: "custom", pattern: /\bcustom\b/i, weight: 0.12 },
   { label: "one-off", pattern: /\bone[- ]off\b/i, weight: 0.12 },
   { label: "small batch", pattern: /\bsmall batch\b/i, weight: 0.14 },
@@ -712,6 +789,10 @@ function hasStrictLeadQualitySignal(lead: Pick<Prelead, "title" | "snippet">, in
   const hasRealWorldObjectSignal = hasAnyPattern(text, realWorldObjectBoostPatterns);
   const hasExplicitIntentSignal = hasAnyPattern(text, explicitIntentBoostPatterns) || hasDirectRequestNeedSignal(intent);
 
+  if (hasAnyPattern(text, automotivePatterns) && !hasClearPhysicalPartSignal(text)) {
+    return false;
+  }
+
   return hasStrongProblemSignal && (hasRealWorldObjectSignal || hasExplicitIntentSignal);
 }
 
@@ -720,6 +801,7 @@ function looksLikeNonManufacturableRepairJob(lead: Pick<Prelead, "title" | "snip
   const hasHardRejectSignal = nonManufacturableRepairPatterns.some((pattern) => pattern.test(text));
   const hasManufacturableException = manufacturablePartExceptionPatterns.some((pattern) => pattern.test(text));
   const looksLikeApplianceExteriorPart = applianceExteriorPartPatterns.filter((pattern) => pattern.test(text)).length >= 2;
+  const looksLikeAutomotivePart = hasAnyPattern(text, automotivePatterns) && hasClearPhysicalPartSignal(text);
   const stillLooksInternalOrElectrical = [
     /\binternal\b/i,
     /\belectrical\b/i,
@@ -736,7 +818,7 @@ function looksLikeNonManufacturableRepairJob(lead: Pick<Prelead, "title" | "snip
     return false;
   }
 
-  if ((hasManufacturableException || looksLikeApplianceExteriorPart) && !stillLooksInternalOrElectrical) {
+  if ((hasManufacturableException || looksLikeApplianceExteriorPart || looksLikeAutomotivePart) && !stillLooksInternalOrElectrical) {
     return false;
   }
 
@@ -754,9 +836,28 @@ function computeValueAssessment(lead: Pick<Prelead, "title" | "snippet" | "locat
   let value_score = 0;
   const reasons: string[] = [];
 
+  const automotiveContext = hasAnyPattern(text, automotivePatterns);
+  const automotivePart = hasClearPhysicalPartSignal(text);
+  const automotiveHighValue = automotiveContext && automotivePart;
+
   if (hasAnyPattern(text, highValueObjectPatterns)) {
     value_score += 3;
     reasons.push("expensive object");
+  }
+
+  if (automotiveContext) {
+    value_score += 3;
+    reasons.push("automotive context");
+  }
+
+  if (automotivePart) {
+    value_score += 2;
+    reasons.push("automotive part");
+  }
+
+  if (automotiveHighValue && hasAnyPattern(text, [/\binterior\b/i, /\btrim\b/i, /\bdashboard\b/i, /\bclip\b/i, /\bbracket\b/i, /\bmount\b/i])) {
+    value_score += 2;
+    reasons.push("high-value car part");
   }
 
   if (hasAnyPattern(text, unavailablePartPatterns)) {
@@ -787,6 +888,11 @@ function computeValueAssessment(lead: Pick<Prelead, "title" | "snippet" | "locat
   if (hasAnyPattern(text, lowValueObjectPatterns)) {
     value_score -= 2;
     reasons.push("cheap/low-value object");
+  }
+
+  if (automotiveContext && !automotivePart) {
+    value_score -= 2;
+    reasons.push("unclear car part");
   }
 
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) {
@@ -1255,6 +1361,8 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   let score = 0;
 
   const analysis = intent ?? classifyPreleadIntent({ title: text, snippet: text });
+  const automotiveContext = hasAnyPattern(text, automotivePatterns);
+  const automotivePart = hasClearPhysicalPartSignal(text);
   const directRequestNeedCount = analysis.need_signals.filter((signal) => !weakNeedSignals.has(signal)).length;
   const weakNeedCount = analysis.need_signals.length - directRequestNeedCount;
   const clearProblemSignals = analysis.make_intent_signals.filter((signal) => ["replacement part", "lost part", "broken part"].includes(signal));
@@ -1286,6 +1394,7 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (location.location_signal === "uk") score += Math.round(4 + location.location_confidence * 6);
   if (location.location_signal === "outside_uk") score -= Math.round(8 + location.location_confidence * 10);
   if (location.location_signal === "unknown") score += Math.round(location.location_confidence * 2);
+  if (automotiveContext) score += automotivePart ? 10 : 2;
   if (hasAnyPattern(text, buyerProblemBoostPatterns) && !hasAnyPattern(text, realWorldObjectBoostPatterns) && !hasAnyPattern(text, explicitIntentBoostPatterns)) {
     score -= 12;
   }
@@ -1304,10 +1413,14 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (looksLikeShowcaseOrOwnerPost(text)) score -= 10;
   if (looksLikeSupportReplacementPost(text)) score -= 12;
   if (looksLikeConsumerDeviceReplacement(text)) score -= 10;
-  if (hasHighTicketFabricationSignal(text, analysis)) score += 10;
+  if (hasHighTicketFabricationSignal(text, analysis)) score += 12;
   if (hasAnyPattern(text, buyerProblemBoostPatterns)) score += 8;
   if (hasAnyPattern(text, realWorldObjectBoostPatterns)) score += 6;
   if (hasAnyPattern(text, urgencyFrustrationBoostPatterns)) score += 5;
+  if (automotiveContext && hasAnyPattern(text, highValueObjectPatterns)) score += 6;
+  if (automotiveContext && hasAnyPattern(text, unavailablePartPatterns)) score += 4;
+  if (automotiveContext && hasAnyPattern(text, usageBlockingPatterns)) score += 4;
+  if (automotiveContext && !automotivePart && !hasAnyPattern(text, unavailablePartPatterns) && !hasAnyPattern(text, usageBlockingPatterns)) score -= 4;
   if (analysis.negative_signals.length) score -= Math.min(8, analysis.negative_signals.length);
 
   return Math.round(score);
@@ -1959,6 +2072,7 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
   if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
+  if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (bannedSignals.length > 0) return "banned_keyword";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
   if (intent.intent_type === "business_advice") return "business_advice";
@@ -1978,6 +2092,7 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
+  if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
   if (intent.intent_type === "business_advice") return "business_advice";
   if (intent.intent_type === "machine_purchase") return "machine_purchase";
@@ -2022,6 +2137,15 @@ function hasDirectRequestNeedSignal(intent: PreleadIntent) {
   return intent.need_signals.some((signal) => !weakNeedSignals.has(signal));
 }
 
+function hasClearPhysicalPartSignal(text: string) {
+  return manufacturablePartExceptionPatterns.some((pattern) => pattern.test(text));
+}
+
+function looksLikeAutomotiveManufacturablePart(text: string) {
+  const hasAutomotiveContext = hasAnyPattern(text, automotivePatterns);
+  return hasAutomotiveContext && hasClearPhysicalPartSignal(text);
+}
+
 function looksLikeFeasibilityOrDiscussionPost(lead: Prelead) {
   const text = getCandidateText(lead);
   return [
@@ -2033,6 +2157,10 @@ function looksLikeFeasibilityOrDiscussionPost(lead: Prelead) {
     /\bgetting started in\b/i,
     /\bmanual in cnc shops\b/i,
     /\bbecome a cnc operator\b/i,
+    /\bwhy is my car\b/i,
+    /\bwhat is wrong with my car\b/i,
+    /\bdiagnostic\b/i,
+    /\btroubleshoot(?:ing)?\b/i,
   ].some((pattern) => pattern.test(text));
 }
 
@@ -2083,6 +2211,7 @@ function looksLikeConsumerDeviceReplacement(text: string, sourceUrl = "") {
 
 function hasHighTicketFabricationSignal(text: string, intent: PreleadIntent) {
   const signalCount = [
+    ...automotivePatterns,
     /\bprototype\b/i,
     /\bsmall batch\b/i,
     /\bone[- ]off\b/i,
@@ -2103,9 +2232,14 @@ function hasHighTicketFabricationSignal(text: string, intent: PreleadIntent) {
     /\bstainless\b/i,
     /\bsteel\b/i,
     /\bbrass\b/i,
+    /\binterior trim\b/i,
+    /\bdashboard\b/i,
+    /\bmirror casing\b/i,
+    /\bbumper trim\b/i,
+    /\bgrille\b/i,
   ].filter((pattern) => pattern.test(text)).length;
 
-  return signalCount >= 2 || intent.need_signals.includes("small batch") || intent.physical_part_signals.includes("prototype");
+  return signalCount >= 2 || intent.need_signals.includes("small batch") || intent.physical_part_signals.includes("prototype") || looksLikeAutomotiveManufacturablePart(text);
 }
 
 function hasStrongBuyerRequestShape(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
@@ -2114,6 +2248,9 @@ function hasStrongBuyerRequestShape(lead: Pick<Prelead, "title" | "snippet">, in
   }
 
   const text = getCandidateText(lead);
+  if (hasAnyPattern(text, automotivePatterns) && !hasClearPhysicalPartSignal(text)) {
+    return false;
+  }
   if (hasDirectRequestNeedSignal(intent) || intent.make_intent_signals.length > 0 || intent.three_d_print_signals.length > 0) {
     return true;
   }
@@ -2162,6 +2299,7 @@ function isEligibleForAiShortlist(lead: Prelead, intent: PreleadIntent) {
 
 function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   let score = lead.lead_score;
+  const text = getCandidateText(lead);
 
   score += lead.value_score * 2;
   if (lead.value_tier === "high") score += 8;
@@ -2189,10 +2327,14 @@ function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   if (looksLikeFeasibilityOrDiscussionPost(lead)) score -= 12;
   if (looksLikeSupportReplacementPost(getCandidateText(lead))) score -= 15;
   if (looksLikeConsumerDeviceReplacement(getCandidateText(lead), lead.source_url)) score -= 12;
-  if (hasHighTicketFabricationSignal(getCandidateText(lead), intent)) score += 12;
-  if (hasAnyPattern(getCandidateText(lead), buyerProblemBoostPatterns)) score += 8;
-  if (hasAnyPattern(getCandidateText(lead), realWorldObjectBoostPatterns)) score += 6;
-  if (hasAnyPattern(getCandidateText(lead), urgencyFrustrationBoostPatterns)) score += 5;
+  if (hasHighTicketFabricationSignal(text, intent)) score += 12;
+  if (hasAnyPattern(text, buyerProblemBoostPatterns)) score += 8;
+  if (hasAnyPattern(text, realWorldObjectBoostPatterns)) score += 6;
+  if (hasAnyPattern(text, urgencyFrustrationBoostPatterns)) score += 5;
+  if (hasAnyPattern(text, automotivePatterns) && hasClearPhysicalPartSignal(text)) score += 10;
+  if (hasAnyPattern(text, automotivePatterns) && hasAnyPattern(text, unavailablePartPatterns)) score += 6;
+  if (hasAnyPattern(text, automotivePatterns) && hasAnyPattern(text, usageBlockingPatterns)) score += 4;
+  if (hasAnyPattern(text, automotivePatterns) && !hasClearPhysicalPartSignal(text)) score -= 8;
   if (!lead.has_file && !lead.has_photos) score -= 3;
   if (lead.location_signal === "outside_uk") score -= 6;
 

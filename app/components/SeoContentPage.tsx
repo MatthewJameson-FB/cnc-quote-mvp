@@ -48,11 +48,16 @@ export default function SeoContentPage({
             If you have a file, upload it for the fastest route. If you only have photos, we can review them and assess whether CAD recreation is needed.
           </p>
           <Link
-            href="/"
+            href="/submit-part"
             className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Upload your part here
+            Upload your part
           </Link>
+          <div className="mt-5 flex flex-wrap gap-2 text-sm text-slate-600">
+            <Link href="/replacement-car-parts-uk" className="rounded-full border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-100">Car parts</Link>
+            <Link href="/replacement-caravan-parts-uk" className="rounded-full border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-100">Caravan parts</Link>
+            <Link href="/submit-part" className="rounded-full border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-100">Upload your part</Link>
+          </div>
         </section>
       </article>
     </main>

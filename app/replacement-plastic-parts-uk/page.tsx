@@ -6,10 +6,10 @@ export default function Page() {
   return (
     <SeoLandingPage
       title="Replacement plastic parts in the UK"
-      intro="Can’t find a replacement plastic part? Upload a photo and we’ll help recreate the part that has snapped, worn out, or gone missing."
+      intro="Can’t find a replacement plastic part? Upload a photo and we’ll help recreate the trim, clip, cover or bracket that has snapped or gone missing."
       examples={[
-        'A plastic clip snapped off and the assembly no longer holds together.',
-        'A cover or trim piece is missing and the product can’t be used properly.',
+        'A plastic interior clip snapped off and the trim no longer sits properly.',
+        'A cover or trim piece is missing and the car or caravan looks unfinished.',
         'A knob, handle or bracket is unavailable from the manufacturer.',
       ]}
     />

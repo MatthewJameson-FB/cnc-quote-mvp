@@ -244,37 +244,39 @@ export default function QuoteIntakeForm() {
           <section className="min-w-0 space-y-6 pt-2 lg:pt-10">
             <div className="max-w-2xl space-y-4">
               <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                Can’t find a replacement part anywhere?
+                Can’t find a replacement car part?
               </h1>
               <p className="text-lg leading-8 text-slate-300 sm:text-xl">
-                Upload a photo — we recreate it and get it made.
+                Upload a photo — we help recreate hard-to-find trim, clips, covers, brackets and fittings.
               </p>
               <Link
                 href="/submit-part"
                 className="inline-flex rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500"
               >
-                Upload your broken part
+                Upload your part
               </Link>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h2 className="text-lg font-semibold text-white">Common parts we help recreate</h2>
+                <h2 className="text-lg font-semibold text-white">Parts we can help with</h2>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-                  <li>Car interior trim clips</li>
-                  <li>Caravan latches and fittings</li>
-                  <li>Broken plastic brackets</li>
-                  <li>Missing covers and knobs</li>
-                  <li>Tool handles and housings</li>
+                  <li>Interior trim clips</li>
+                  <li>Dashboard covers</li>
+                  <li>Door panel brackets</li>
+                  <li>Mirror casings</li>
+                  <li>Bumper trim pieces</li>
+                  <li>Caravan and motorhome fittings</li>
                 </ul>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h2 className="text-lg font-semibold text-white">When this works best</h2>
+                <h2 className="text-lg font-semibold text-white">Best for hard-to-find parts</h2>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-                  <li>You can’t find the part anywhere</li>
-                  <li>The manufacturer doesn’t sell it</li>
-                  <li>The item still works but one part is broken</li>
-                  <li>Replacing the whole item would be expensive</li>
+                  <li>Discontinued parts</li>
+                  <li>Missing clips or covers</li>
+                  <li>Broken trim or brackets</li>
+                  <li>Parts the manufacturer no longer sells</li>
+                  <li>Small external plastic or metal fittings</li>
                 </ul>
               </div>
             </div>
@@ -282,18 +284,19 @@ export default function QuoteIntakeForm() {
             <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-5">
               <h2 className="text-lg font-semibold text-white">Not suitable for</h2>
               <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-300 sm:grid-cols-3">
-                <li>Electronics or circuit boards</li>
-                <li>Motors or internal mechanisms</li>
+                <li>Engines or gearboxes</li>
+                <li>Sensors, wiring or electronics</li>
                 <li>Safety-critical components</li>
+                <li>Diagnostic repair issues</li>
               </ul>
             </div>
 
             <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-5">
-              <a href="/cant-find-replacement-part" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Can’t find replacement part</a>
-              <a href="/replacement-plastic-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Plastic parts</a>
-              <a href="/custom-replacement-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Custom parts</a>
               <a href="/replacement-car-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Car parts</a>
               <a href="/replacement-caravan-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Caravan parts</a>
+              <a href="/replacement-plastic-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Plastic parts</a>
+              <a href="/cant-find-replacement-part" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Can’t find replacement part</a>
+              <a href="/submit-part" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Upload your part</a>
             </div>
 
             <ul className="space-y-3 text-base text-slate-200">

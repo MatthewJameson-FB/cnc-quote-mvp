@@ -6,11 +6,11 @@ export default function Page() {
   return (
     <SeoLandingPage
       title="Can’t find a replacement part anywhere?"
-      intro="Upload a photo and description. If the part is discontinued or out of stock everywhere, we’ll help you find a path to a usable replacement."
+      intro="Upload a photo and description. If the part is discontinued or out of stock everywhere, we help recreate hard-to-find trim, clips, covers and fittings."
       examples={[
-        'Manufacturer doesn’t sell the part any more and the item is unusable without it.',
-        'You’ve searched everywhere and still can’t find a matching clip, latch or cover.',
-        'A broken part is stopping a tool, vehicle or appliance from working properly.',
+        'The manufacturer no longer sells the part and the car is stuck without it.',
+        'You’ve searched everywhere and still can’t find a matching clip, cover or bracket.',
+        'A broken trim piece is stopping a vehicle, caravan or motorhome from being finished properly.',
       ]}
     />
   )

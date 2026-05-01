@@ -6,11 +6,11 @@ export default function Page() {
   return (
     <SeoLandingPage
       title="Replacement car parts in the UK"
-      intro="Can’t find a replacement car part anywhere? Upload a photo and we’ll help recreate the piece that’s holding the job up."
+      intro="Can’t find a replacement car part anywhere? Upload a photo — we help recreate hard-to-find trim, clips, covers, brackets and fittings."
       examples={[
-        'Car interior clip broke and the trim no longer sits right.',
-        'Plastic handle snapped off and the door or panel no longer works properly.',
-        'A small bracket or cover is discontinued and the manufacturer no longer sells it.',
+        'Interior trim clip broke and the panel no longer sits right.',
+        'Dashboard cover or mirror casing is missing and the car looks unfinished.',
+        'A small bracket, clip or fitting is discontinued and the manufacturer no longer sells it.',
       ]}
     />
   )

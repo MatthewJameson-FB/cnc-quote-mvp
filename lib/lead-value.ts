@@ -1,21 +1,41 @@
 export type LeadValueTier = 'low' | 'medium' | 'high'
 
-const expensiveObjectPatterns = [
+const automotiveContextPatterns = [
   /\bcar\b/i,
-  /\bvan\b/i,
-  /\bcaravan\b/i,
-  /\bmotorhome\b/i,
-  /\btool\b/i,
-  /\bmachinery\b/i,
-  /\bfurniture\b/i,
-  /\bgym equipment\b/i,
-  /\bboat\b/i,
+  /\bvehicle\b/i,
+  /\bBMW\b/i,
+  /\bAudi\b/i,
+  /\bMercedes\b/i,
+  /\bVW\b/i,
+  /\bVolkswagen\b/i,
+  /\bFord\b/i,
+  /\bToyota\b/i,
+  /\bHonda\b/i,
+  /\binterior\b/i,
+  /\btrim\b/i,
+]
+
+const automotivePartPatterns = [
+  /\binterior trim\b/i,
+  /\bdashboard\b/i,
+  /\bpanel\b/i,
+  /\bbracket\b/i,
+  /\bmount\b/i,
+  /\bclip\b/i,
+  /\bhousing\b/i,
+  /\bcover\b/i,
+  /\btrim piece\b/i,
+  /\bmirror casing\b/i,
+  /\bbumper trim\b/i,
+  /\bgrille\b/i,
 ]
 
 const unavailablePatterns = [
   /can't find/i,
   /cannot find/i,
   /discontinued/i,
+  /no replacement/i,
+  /oem too expensive/i,
   /manufacturer doesn't sell/i,
   /out of stock/i,
 ]
@@ -26,6 +46,11 @@ const usageBlockingPatterns = [
   /won't latch/i,
   /won't stay/i,
   /can't attach/i,
+  /missing piece/i,
+  /missing trim/i,
+  /broken clip/i,
+  /snapped clip/i,
+  /loose panel/i,
 ]
 
 const simplePartPatterns = [
@@ -36,6 +61,9 @@ const simplePartPatterns = [
   /\bhandle\b/i,
   /\btrim\b/i,
   /\blatch\b/i,
+  /\bpanel\b/i,
+  /\bhousing\b/i,
+  /\bmount\b/i,
 ]
 
 const internalElectricalPatterns = [
@@ -44,6 +72,13 @@ const internalElectricalPatterns = [
   /\bpcb\b/i,
   /\bsensor\b/i,
   /\bengine\b/i,
+  /\bgearbox\b/i,
+  /\btransmission\b/i,
+  /\becu\b/i,
+  /\bwiring\b/i,
+  /\bbattery\b/i,
+  /\balternator\b/i,
+  /\belectrical issue\b/i,
   /\binternal\b/i,
 ]
 
@@ -71,9 +106,9 @@ export function scoreLeadValue(text: string): LeadValueScoreResult {
   let value_score = 0
   const reasons: string[] = []
 
-  if (expensiveObjectPatterns.some((pattern) => pattern.test(haystack))) {
+  if (automotiveContextPatterns.some((pattern) => pattern.test(haystack))) {
     value_score += 3
-    reasons.push('expensive object')
+    reasons.push('automotive context')
   }
 
   if (unavailablePatterns.some((pattern) => pattern.test(haystack))) {
@@ -84,6 +119,11 @@ export function scoreLeadValue(text: string): LeadValueScoreResult {
   if (usageBlockingPatterns.some((pattern) => pattern.test(haystack))) {
     value_score += 2
     reasons.push('blocks usage')
+  }
+
+  if (automotivePartPatterns.some((pattern) => pattern.test(haystack))) {
+    value_score += 3
+    reasons.push('automotive part')
   }
 
   if (simplePartPatterns.some((pattern) => pattern.test(haystack))) {

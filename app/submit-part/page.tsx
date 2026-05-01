@@ -8,9 +8,9 @@ export default function SubmitPartPage() {
       <div className="mx-auto max-w-4xl space-y-6">
         <header className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Flangie</p>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Upload your broken part</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Upload your car part</h1>
           <p className="max-w-2xl text-lg leading-8 text-slate-600">
-            If you can’t find a replacement, we may be able to recreate it.
+            If you can’t find a replacement trim, clip, cover or fitting, send us a photo and a short description.
           </p>
         </header>
         <SubmitPartForm />

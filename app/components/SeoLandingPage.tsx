@@ -17,20 +17,20 @@ export default function SeoLandingPage({
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{title}</h1>
           <p className="max-w-2xl text-lg leading-8 text-slate-600">{intro}</p>
           <Link href="/submit-part" className="inline-flex rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-500">
-            Upload your broken part
+            Upload your part
           </Link>
         </header>
 
         <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-2xl font-bold">Why this exists</h2>
           <p className="text-slate-600">
-            Replacement parts go missing, get discontinued, or stop being sold all the time. We help when the broken bit is small, physical, and worth recreating instead of replacing the whole item.
+            Replacement parts go missing, get discontinued, or stop being sold all the time. We help recreate small physical parts instead of replacing the whole item.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Car trim clips and interior fittings</p>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Caravan latches, hinges and brackets</p>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Plastic covers, knobs and mounts</p>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Tool handles and housings</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Interior trim clips and dashboard covers</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Door panel brackets and mirror casings</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Caravan and motorhome fittings</p>
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Small plastic or metal trim pieces</p>
           </div>
         </section>
 
@@ -56,23 +56,23 @@ export default function SeoLandingPage({
         <section className="rounded-3xl border border-rose-200 bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-2xl font-bold">Not suitable for</h2>
           <ul className="space-y-2 text-slate-600">
-            <li>• Electronics or circuit boards</li>
-            <li>• Motors or internal mechanisms</li>
+            <li>• Engines or gearboxes</li>
+            <li>• Sensors, wiring or electronics</li>
             <li>• Safety-critical components</li>
           </ul>
         </section>
 
         <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-2xl font-bold">Can’t find the part?</h2>
-          <p className="text-slate-600">
-            Upload a photo and tell us what it needs to fit or do. We’ll recreate the part and work out the best way to get it made.
+            <h2 className="text-2xl font-bold">Can’t find the part?</h2>
+            <p className="text-slate-600">
+            Upload a photo and tell us what it needs to fit or do. We help recreate hard-to-find parts and work out the best way to get it made.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
               Home
             </Link>
             <Link href="/submit-part" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-              Upload your broken part
+              Upload your part
             </Link>
           </div>
         </section>
