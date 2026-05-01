@@ -392,6 +392,7 @@ const hardToSourcePartBoostPatterns = [
   /\bretainer\b/i,
   /\bplastic part\b/i,
 ];
+const easyBuyPartPatterns = [/\bcup holder\b/i, /\bcupholder\b/i];
 const applianceExteriorPartPatterns = [/\bappliance\b/i, /\bhandle\b/i, /\bknob\b/i, /\btrim\b/i, /\bcover\b/i, /\blid\b/i, /\bdial\b/i];
 const highValueObjectPatterns = [
   /\bBMW\b/i,
@@ -458,6 +459,8 @@ const lowValueObjectPatterns = [
   /\btoaster\b/i,
   /\bremote\b/i,
   /\btoy\b/i,
+  /\bcup holder\b/i,
+  /\bcupholder\b/i,
   /\bpurely cosmetic\b/i,
   /\bstill works fine\b/i,
   /\bnot urgent\b/i,
@@ -895,6 +898,7 @@ function computeValueAssessment(lead: Pick<Prelead, "title" | "snippet" | "locat
   const automotiveContext = hasAnyPattern(text, automotivePatterns);
   const automotivePart = hasClearPhysicalPartSignal(text);
   const automotiveHighValue = automotiveContext && automotivePart;
+  const easyBuy = hasEasyBuySignal(text);
 
   if (hasAnyPattern(text, highValueObjectPatterns)) {
     value_score += 3;
@@ -944,6 +948,16 @@ function computeValueAssessment(lead: Pick<Prelead, "title" | "snippet" | "locat
   if (hasAnyPattern(text, lowValueObjectPatterns)) {
     value_score -= 2;
     reasons.push("cheap/low-value object");
+  }
+
+  if (easyBuy) {
+    value_score -= 4;
+    reasons.push("easy-buy part");
+  }
+
+  if (easyBuy && hasAnyPattern(text, threeDPrintOnlyPatterns) && !hasAnyPattern(text, unavailablePartPatterns)) {
+    value_score -= 4;
+    reasons.push("3d print poor economics");
   }
 
   if (automotiveContext && !automotivePart) {
@@ -1420,6 +1434,7 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   const automotiveContext = hasAnyPattern(text, automotivePatterns);
   const automotivePart = hasClearPhysicalPartSignal(text);
   const hardness = getPartHardnessSignals(text);
+  const easyBuy = hasEasyBuySignal(text);
   const directRequestNeedCount = analysis.need_signals.filter((signal) => !weakNeedSignals.has(signal)).length;
   const weakNeedCount = analysis.need_signals.length - directRequestNeedCount;
   const clearProblemSignals = analysis.make_intent_signals.filter((signal) => ["replacement part", "lost part", "broken part"].includes(signal));
@@ -1484,6 +1499,8 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (hasStrongUnavailableSignal(text)) score += 10;
   if (hardness.strongAgeBoost) score += 12;
   else if (hardness.ageBoost) score += 6;
+  if (easyBuy) score -= 8;
+  if (easyBuy && hasAnyPattern(text, threeDPrintOnlyPatterns) && !hasStrongUnavailableSignal(text)) score -= 8;
 
   return Math.round(score);
 }
@@ -1542,6 +1559,10 @@ function getScarcitySignal(text: string) {
   }
 
   return null;
+}
+
+function hasEasyBuySignal(text: string) {
+  return hasAnyPattern(text, easyBuyPartPatterns);
 }
 
 function getPartHardnessSignals(text: string) {
@@ -2216,11 +2237,13 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   const text = getCandidateText(lead);
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
   const hardness = getPartHardnessSignals(text);
+  const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
+  if (easyBuy && !hasStrongUnavailableSignal(text) && intent.three_d_print_signals.length > 0) return "low_quality_signal";
   if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
   if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (bannedSignals.length > 0) return "banned_keyword";
@@ -2240,10 +2263,12 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
   const sourceUrl = lead.source_url.toLowerCase();
   const hardness = getPartHardnessSignals(text);
+  const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
+  if (easyBuy && !hasStrongUnavailableSignal(text) && intent.three_d_print_signals.length > 0) return "low_quality_signal";
   if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
   if (intent.intent_type === "business_advice") return "business_advice";
@@ -3395,9 +3420,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
       for (const { candidate } of accepted.slice(0, 10)) {
         const lead = preAiCandidateByUrl.get(candidate.source_url)?.lead;
+        const rawCandidate = rawCandidateByUrl.get(candidate.source_url);
         const text = lead ? getCandidateText(lead) : `${candidate.title} ${candidate.snippet}`;
+        const threadSummary = lead?.thread_context_summary ? formatThreadContextSummary(lead.thread_context_summary) : "none";
         logger.info(
-          `accepted query=${candidate.query_used ?? "none"} scarcity=${getScarcitySignal(text) ?? "none"} part_type=${getPartTypeSignal(text, preAiCandidateByUrl.get(candidate.source_url)?.intent) ?? "none"} duplicate_status=unique` 
+          `accepted query=${candidate.query_used ?? "none"} scarcity=${getScarcitySignal(text) ?? "none"} part_type=${getPartTypeSignal(text, preAiCandidateByUrl.get(candidate.source_url)?.intent) ?? "none"} duplicate_status=unique comment_context=${rawCandidate?.comment_context_used ? "used" : "none"} thread_summary=${threadSummary}`
         );
       }
     } else {
