@@ -498,7 +498,7 @@ export async function POST(req: Request) {
     }
 
     if (quote.email) {
-      void sendQuoteNotifications({
+      const notificationResult = await sendQuoteNotifications({
         name: quote.name || "Customer",
         email: quote.email,
         companyName: quote.companyName || undefined,
@@ -532,8 +532,11 @@ export async function POST(req: Request) {
         confirmationYesUrl: yesUrl ?? undefined,
         confirmationNoUrl: noUrl ?? undefined,
         adminLink: `${getAppBaseUrl()}/admin/quotes`,
-      }).catch((notificationError) => {
-        console.error("EMAIL NOTIFICATION ERROR:", notificationError);
+      });
+
+      console.log("email notification result", {
+        customer: notificationResult.customer?.status,
+        internal: notificationResult.internal?.status,
       });
     }
 

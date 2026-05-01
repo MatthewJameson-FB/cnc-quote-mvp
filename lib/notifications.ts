@@ -139,6 +139,7 @@ async function sendResendEmail({
   }
 
   const payload = (await response.json().catch(() => null)) as { id?: string } | null;
+  console.log("EMAIL SENT:", { to, providerId: payload?.id ?? null });
 
   return {
     sent: true,
