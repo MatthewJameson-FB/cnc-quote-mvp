@@ -298,6 +298,12 @@ const buyerProblemBoostPatterns = [
   /\bsnapped clip\b/i,
   /\bmissing trim\b/i,
   /\bloose panel\b/i,
+  /\bcan't find\b/i,
+  /\bcan(?:'|’)t find\b/i,
+  /\bno longer available\b/i,
+  /\boem unavailable\b/i,
+  /\banyone know where to get\b/i,
+  /\breplacement part not available\b/i,
 ];
 const realWorldObjectBoostPatterns = [/\bcar\b/i, /\bvehicle\b/i, /\bappliance\b/i, /\bmachine\b/i, /\bwindow\b/i, /\bfurniture\b/i, /\binterior\b/i, /\btrim\b/i];
 const urgencyFrustrationBoostPatterns = [/\bcan(?:'|’)t find\b/i, /\bneed\b/i, /\banywhere\b/i, /\bwhat do i do\b/i, /\boem too expensive\b/i, /\bno replacement\b/i];
@@ -311,6 +317,9 @@ const explicitIntentBoostPatterns = [
   /\bneed replacement\b/i,
   /\bmissing piece\b/i,
   /\bbroken clip\b/i,
+  /\bno longer available\b/i,
+  /\boem unavailable\b/i,
+  /\breplacement part not available\b/i,
 ];
 const stlOnlyReplySuppressionPatterns = [
   /\blooking for (?:an? )?(?:stl|cad|file)\b/i,
@@ -359,6 +368,28 @@ const manufacturablePartExceptionPatterns = [
   /\bbumper trim\b/i,
   /\bgrille\b/i,
   /\btrim piece\b/i,
+];
+const easyBodyworkPatterns = [
+  /\bpanel\b/i,
+  /\bbumper\b/i,
+  /\bdoor panel\b/i,
+  /\bfender\b/i,
+  /\bbonnet\b/i,
+  /\bhood\b/i,
+  /\bpainted part\b/i,
+  /\bcolour match\b/i,
+  /\bcolor match\b/i,
+  /\bbodywork\b/i,
+];
+const hardToSourcePartBoostPatterns = [
+  /\bclip\b/i,
+  /\bbracket\b/i,
+  /\bmount\b/i,
+  /\btrim piece\b/i,
+  /\bhousing\b/i,
+  /\bcover\b/i,
+  /\bretainer\b/i,
+  /\bplastic part\b/i,
 ];
 const applianceExteriorPartPatterns = [/\bappliance\b/i, /\bhandle\b/i, /\bknob\b/i, /\btrim\b/i, /\bcover\b/i, /\blid\b/i, /\bdial\b/i];
 const highValueObjectPatterns = [
@@ -1387,6 +1418,7 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   const analysis = intent ?? classifyPreleadIntent({ title: text, snippet: text });
   const automotiveContext = hasAnyPattern(text, automotivePatterns);
   const automotivePart = hasClearPhysicalPartSignal(text);
+  const hardness = getPartHardnessSignals(text);
   const directRequestNeedCount = analysis.need_signals.filter((signal) => !weakNeedSignals.has(signal)).length;
   const weakNeedCount = analysis.need_signals.length - directRequestNeedCount;
   const clearProblemSignals = analysis.make_intent_signals.filter((signal) => ["replacement part", "lost part", "broken part"].includes(signal));
@@ -1446,8 +1478,66 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (automotiveContext && hasAnyPattern(text, usageBlockingPatterns)) score += 4;
   if (automotiveContext && !automotivePart && !hasAnyPattern(text, unavailablePartPatterns) && !hasAnyPattern(text, usageBlockingPatterns)) score -= 4;
   if (analysis.negative_signals.length) score -= Math.min(8, analysis.negative_signals.length);
+  if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) score -= 24;
+  if (hardness.hardToSourceMatch) score += 8;
+  if (hasStrongUnavailableSignal(text)) score += 10;
+  if (hardness.strongAgeBoost) score += 12;
+  else if (hardness.ageBoost) score += 6;
 
   return Math.round(score);
+}
+
+function extractVehicleYear(text: string) {
+  const matches = [...text.matchAll(/\b(19\d{2}|20\d{2})\b/g)].map((match) => Number(match[1])).filter((value) => value >= 1900 && value <= 2099);
+  if (matches.length === 0) return null;
+  return Math.max(...matches);
+}
+
+function hasStrongUnavailableSignal(text: string) {
+  return hasAnyPattern(text, unavailablePartPatterns) || hasAnyPattern(text, urgencyFrustrationBoostPatterns);
+}
+
+function getPartTypeSignal(text: string, intent?: PreleadIntent) {
+  const signals = [
+    "clip",
+    "bracket",
+    "mount",
+    "trim piece",
+    "housing",
+    "cover",
+    "retainer",
+    "plastic part",
+  ];
+
+  for (const signal of signals) {
+    if (new RegExp(`\\b${signal.replace(/ /g, "\\s+")}\\b`, "i").test(text)) {
+      return signal;
+    }
+  }
+
+  if (intent?.physical_part_signals.length) {
+    return intent.physical_part_signals.join(", ");
+  }
+
+  return null;
+}
+
+function getPartHardnessSignals(text: string) {
+  const bodyworkMatch = hasAnyPattern(text, easyBodyworkPatterns);
+  const scarcityMatch = hasAnyPattern(text, unavailablePartPatterns);
+  const hardToSourceMatch = hasAnyPattern(text, hardToSourcePartBoostPatterns);
+  const year = extractVehicleYear(text);
+  const strongAgeBoost = typeof year === "number" && year < 2005;
+  const ageBoost = typeof year === "number" && year < 2015;
+
+  return {
+    bodyworkMatch,
+    scarcityMatch,
+    hardToSourceMatch,
+    year,
+    ageBoost,
+    strongAgeBoost,
+  };
 }
 
 function getSnippet(text: string, phrases: string[]) {
@@ -2103,10 +2193,12 @@ function looksLikeCuriosityOrPracticePost(text: string) {
 function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, includeOutsideUk: boolean) {
   const text = getCandidateText(lead);
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
+  const hardness = getPartHardnessSignals(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
+  if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
   if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
   if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (bannedSignals.length > 0) return "banned_keyword";
@@ -2125,9 +2217,11 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const text = getCandidateText(lead);
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
   const sourceUrl = lead.source_url.toLowerCase();
+  const hardness = getPartHardnessSignals(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
+  if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
   if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
   if (intent.intent_type === "business_advice") return "business_advice";
@@ -3201,6 +3295,15 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         seenFinalUrls.add(candidate.source_url);
 
         const shouldReply = classification.should_reply && computeShouldReply(preAiCandidate.lead, preAiCandidate.intent, classification);
+        const acceptedText = getCandidateText(preAiCandidate.lead);
+        const acceptedHardness = getPartHardnessSignals(acceptedText);
+        const acceptedSignals = {
+          unavailable: hasStrongUnavailableSignal(acceptedText),
+          direct_request: hasDirectRequestNeedSignal(preAiCandidate.intent),
+          part_type: getPartTypeSignal(acceptedText, preAiCandidate.intent) || (acceptedHardness.hardToSourceMatch ? "hard-to-source part" : "none"),
+          age_signal: acceptedHardness.strongAgeBoost ? `pre-2005 (${acceptedHardness.year})` : acceptedHardness.ageBoost ? `pre-2015 (${acceptedHardness.year})` : acceptedHardness.year ? `year ${acceptedHardness.year}` : "none",
+          hardness: acceptedHardness.bodyworkMatch && !acceptedHardness.scarcityMatch ? "bodywork rejected" : acceptedHardness.scarcityMatch ? "scarcity signal" : "neutral",
+        };
 
         aiDecisionByUrl.set(candidate.source_url, {
           ai_is_lead: classification.is_lead,
@@ -3212,6 +3315,12 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         });
 
         finalAcceptedLeads.push(applyAiClassificationToLead(preAiCandidate.lead, classification, shouldReply, summarizeProblemSignals(preAiCandidate.intent)));
+
+        if (debugEnabled) {
+          logger.debug(
+            `accepted lead: title=${candidate.title} query_used=${rawCandidateByUrl.get(candidate.source_url)?.query_used ?? 'null'} why=${JSON.stringify(acceptedSignals)}`
+          );
+        }
       }
 
       leads.push(...finalAcceptedLeads);
