@@ -1,82 +1,58 @@
-import Link from 'next/link'
+import Link from "next/link";
+import PublicSiteShell from "@/app/components/PublicSiteShell";
 
 export default function SeoLandingPage({
   title,
   intro,
   examples,
 }: {
-  title: string
-  intro: string
-  examples: string[]
+  title: string;
+  intro: string;
+  examples: string[];
 }) {
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-8">
-        <header className="space-y-4 rounded-3xl border bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Flangie</p>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{title}</h1>
-          <p className="max-w-2xl text-lg leading-8 text-slate-600">{intro}</p>
-          <Link href="/submit-part" className="inline-flex rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-500">
-            Upload your part
-          </Link>
-        </header>
+    <PublicSiteShell>
+      <div className="mx-auto max-w-6xl px-4 pb-14 pt-4 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+          <section className="space-y-6 rounded-[32px] border border-white/10 bg-white/10 p-7 backdrop-blur-sm sm:p-9">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#7ea6e8]">Automotive replacement parts</p>
+            <h1 className="max-w-3xl text-4xl font-black tracking-tight text-white sm:text-5xl">{title}</h1>
+            <p className="max-w-2xl text-lg leading-8 text-slate-300">{intro}</p>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/submit-part" className="inline-flex rounded-full bg-[#f05a3a] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#ff6948]">
+                Upload your part
+              </Link>
+              <Link href="/examples" className="inline-flex rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                See examples
+              </Link>
+            </div>
+          </section>
 
-        <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-2xl font-bold">Why this exists</h2>
-          <p className="text-slate-600">
-            Replacement parts go missing, get discontinued, or stop being sold all the time. We help recreate small physical parts instead of replacing the whole item.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Interior trim clips and dashboard covers</p>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Door panel brackets and mirror casings</p>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Caravan and motorhome fittings</p>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">Small plastic or metal trim pieces</p>
-          </div>
-        </section>
+          <aside className="space-y-4 rounded-[32px] border border-slate-200 bg-[#f8f4ee] p-7 text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#355894]">Common requests</p>
+            <div className="space-y-3">
+              {examples.map((example) => (
+                <div key={example} className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
+                  {example}
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          {examples.map((example) => (
-            <div key={example} className="rounded-3xl border bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Example use case</p>
-              <p className="mt-2 text-base text-slate-800">{example}</p>
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          {[
+            ["Trim and clips", "Interior and exterior pieces that snapped or went missing."],
+            ["Brackets and mounts", "Small fixings that are hard to source by themselves."],
+            ["Discontinued parts", "Older car parts that the dealer no longer sells."],
+          ].map(([title, body]) => (
+            <div key={title} className="rounded-[28px] border border-white/10 bg-white/10 p-5 text-slate-100">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#7ea6e8]">{title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{body}</p>
             </div>
           ))}
         </section>
-
-        <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-2xl font-bold">When to use Flangie</h2>
-          <ul className="space-y-2 text-slate-600">
-            <li>• You can’t find the part anywhere</li>
-            <li>• The manufacturer doesn’t sell it</li>
-            <li>• The item still works but one part is broken</li>
-            <li>• Replacing the whole item would be expensive</li>
-          </ul>
-        </section>
-
-        <section className="rounded-3xl border border-rose-200 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-2xl font-bold">Not suitable for</h2>
-          <ul className="space-y-2 text-slate-600">
-            <li>• Engines or gearboxes</li>
-            <li>• Sensors, wiring or electronics</li>
-            <li>• Safety-critical components</li>
-          </ul>
-        </section>
-
-        <section className="rounded-3xl border bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-2xl font-bold">Can’t find the part?</h2>
-            <p className="text-slate-600">
-            Upload a photo and tell us what it needs to fit or do. We help recreate hard-to-find parts and work out the best way to get it made.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-              Home
-            </Link>
-            <Link href="/submit-part" className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-              Upload your part
-            </Link>
-          </div>
-        </section>
       </div>
-    </main>
-  )
+    </PublicSiteShell>
+  );
 }

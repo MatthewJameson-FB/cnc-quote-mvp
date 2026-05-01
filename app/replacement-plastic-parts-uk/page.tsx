@@ -10,7 +10,7 @@ export default function Page() {
       examples={[
         'A plastic interior clip snapped off and the trim no longer sits properly.',
         'A cover or trim piece is missing and the car or caravan looks unfinished.',
-        'A knob, handle or bracket is unavailable from the manufacturer.',
+        'A handle, knob or bracket is unavailable from the manufacturer.',
       ]}
     />
   )

@@ -6,11 +6,11 @@ export default function Page() {
   return (
     <SeoLandingPage
       title="Replacement caravan parts in the UK"
-      intro="Need a caravan part that’s discontinued or impossible to find? Upload a photo and we help recreate hard-to-find fittings, trims and brackets."
+      intro="Need a caravan part that’s discontinued or impossible to find? Upload a photo and we help recreate small fittings, trims and brackets."
       examples={[
-        'Caravan trim clip snapped and the panel won’t sit flush.',
+        'A trim clip snapped and the panel will not sit flush.',
         'A latch, hinge or fitting is missing and the door will not close properly.',
-        'A cover or bracket is missing and the caravan is stuck until it’s replaced.',
+        'A cover or bracket is unavailable from the original supplier.',
       ]}
     />
   )

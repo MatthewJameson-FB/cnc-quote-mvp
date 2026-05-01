@@ -1,36 +1,29 @@
 import { Suspense } from "react";
 import QuoteIntakeForm from "@/app/components/QuoteIntakeForm";
+import PublicSiteShell from "@/app/components/PublicSiteShell";
 
 function QuoteIntakeFallback() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-slate-950 px-4 py-10 text-slate-100 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,600px)] lg:gap-14">
-          <section className="min-w-0 space-y-6 pt-2 lg:pt-10">
-            <div className="max-w-2xl space-y-4">
-              <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                Can’t find a replacement part anywhere?
-              </h1>
-              <p className="text-lg leading-8 text-slate-300 sm:text-xl">
-                Upload a photo — we recreate it and get it made.
-              </p>
-              <a
-                href="/submit-part"
-                className="inline-flex rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500"
-              >
-                Upload your broken part
-              </a>
-            </div>
+    <PublicSiteShell>
+      <div className="mx-auto max-w-7xl px-4 pb-10 pt-2 sm:px-6 lg:px-8">
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-12">
+          <section className="rounded-[32px] border border-white/10 bg-white/5 p-8">
+            <div className="h-6 w-40 animate-pulse rounded-full bg-white/10" />
+            <div className="mt-6 h-16 w-4/5 animate-pulse rounded-2xl bg-white/10" />
+            <div className="mt-4 h-8 w-3/5 animate-pulse rounded-2xl bg-white/10" />
+            <div className="mt-10 h-40 rounded-[28px] border border-white/10 bg-white/5" />
           </section>
 
-          <section className="min-w-0">
-            <div className="w-full rounded-xl border border-white/10 bg-white p-6 shadow-2xl shadow-black/20 sm:p-8">
-              <div className="h-[720px] animate-pulse rounded-xl bg-slate-100" />
+          <section className="rounded-[32px] border border-slate-200 bg-[#f8f4ee] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
+            <div className="space-y-4">
+              <div className="h-4 w-24 animate-pulse rounded-full bg-slate-200" />
+              <div className="h-10 w-3/4 animate-pulse rounded-2xl bg-slate-200" />
+              <div className="h-[520px] animate-pulse rounded-[28px] bg-slate-100" />
             </div>
           </section>
         </div>
       </div>
-    </main>
+    </PublicSiteShell>
   );
 }
 
