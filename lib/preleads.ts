@@ -91,6 +91,7 @@ type MonitorResult = {
 
 type QueryRunStats = {
   fetched: number;
+  sentToAi: number;
   preAiAccepted: number;
   aiAccepted: number;
   inserted: number;
@@ -102,6 +103,8 @@ type QueryHealthEntry = {
   lowQualityStreak: number;
   lastRunAt: string | null;
   lastLowQualityOnly: boolean;
+  zeroAcceptedStreak: number;
+  lastAcceptedCount: number;
 };
 
 type QueryHealthState = {
@@ -3015,6 +3018,7 @@ function getOrCreateQueryStats(map: Map<string, QueryRunStats>, query: string) {
 
   const created: QueryRunStats = {
     fetched: 0,
+    sentToAi: 0,
     preAiAccepted: 0,
     aiAccepted: 0,
     inserted: 0,
@@ -3042,6 +3046,8 @@ async function loadQueryHealthState(): Promise<QueryHealthState> {
             lowQualityStreak: Number(entry?.lowQualityStreak ?? 0),
             lastRunAt: typeof entry?.lastRunAt === "string" ? entry.lastRunAt : null,
             lastLowQualityOnly: Boolean(entry?.lastLowQualityOnly),
+            zeroAcceptedStreak: Number(entry?.zeroAcceptedStreak ?? 0),
+            lastAcceptedCount: Number(entry?.lastAcceptedCount ?? 0),
           },
         ])
       ),
@@ -3211,7 +3217,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
   if (useAiPipeline) {
     const preAiCandidateByUrl = new Map(preAiCandidates.map((entry) => [entry.lead.source_url, entry]));
-    const aiShortlistPool = preAiCandidates.filter(({ lead, intent }) => isEligibleForAiShortlist(lead, intent));
+      const aiShortlistPool = preAiCandidates.filter(({ lead, intent }) => isEligibleForAiShortlist(lead, intent));
     const orderedAiCandidates = [...aiShortlistPool].sort((a, b) => {
       const scoreDifference = calculateAiShortlistScore(b.lead, b.intent) - calculateAiShortlistScore(a.lead, a.intent);
       return scoreDifference || comparePreleadPriority(a.lead, b.lead);
@@ -3240,6 +3246,13 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     }));
     aiCandidateUrls = new Set(aiCandidates.map((candidate) => candidate.source_url));
     aiCandidatesSent = aiCandidates.length;
+
+    for (const candidate of aiCandidates) {
+      const queryUsed = rawCandidateByUrl.get(candidate.source_url)?.query_used?.trim();
+      if (queryUsed) {
+        getOrCreateQueryStats(queryStats, queryUsed).sentToAi += 1;
+      }
+    }
 
     if (debugEnabled) {
       logger.info(`AI shortlist pool size: ${aiShortlistPool.length}`);
@@ -3653,22 +3666,25 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
     for (const [query, stats] of queryStats.entries()) {
       const lowQualityOnly = stats.fetched > 0 && stats.lowQualitySignalCount === stats.fetched;
-      const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false };
+      const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false, zeroAcceptedStreak: 0, lastAcceptedCount: 0 };
       const lowQualityStreak = lowQualityOnly ? previous.lowQualityStreak + 1 : 0;
+      const zeroAcceptedStreak = stats.aiAccepted === 0 ? previous.zeroAcceptedStreak + 1 : 0;
 
       queryHealth.queries[query] = {
         lowQualityStreak,
         lastRunAt: new Date().toISOString(),
         lastLowQualityOnly: lowQualityOnly,
+        zeroAcceptedStreak,
+        lastAcceptedCount: stats.aiAccepted,
       };
       queryHealthChanged = true;
 
       logger.info(
-        `query stats: fetched=${stats.fetched} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} duplicates=${stats.duplicates} low_quality_only=${lowQualityOnly ? "yes" : "no"} query=${query}`
+        `query stats: fetched=${stats.fetched} sent_to_ai=${stats.sentToAi} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} duplicates=${stats.duplicates} low_quality_only=${lowQualityOnly ? "yes" : "no"} zero_accepted_streak=${zeroAcceptedStreak} query=${query}`
       );
 
-      if (lowQualityOnly && lowQualityStreak >= 3) {
-        logger.warn(`low-yield query: streak=${lowQualityStreak} query=${query}`);
+      if ((lowQualityOnly && lowQualityStreak >= 3) || zeroAcceptedStreak >= 3) {
+        logger.warn(`low-yield query: low_quality_streak=${lowQualityStreak} zero_accepted_streak=${zeroAcceptedStreak} query=${query}`);
       }
     }
 

@@ -1,21 +1,32 @@
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
-const QUERIES = [
-  'site:reddit.com "no longer available" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "discontinued" "interior trim" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "can\'t find" "plastic clip" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "can\'t find" "trim piece" "MX5 NA" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "OEM unavailable" bracket car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "replacement part not available" "classic car" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "where can I get" "dashboard trim" "MX5" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "discontinued" "retainer clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "can\'t find" "interior cover" "VW Golf" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:pistonheads.com "obsolete" "car trim clip" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:mx5oc.co.uk "discontinued" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:bimmerforums.com "can\'t find" "trim piece" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+type SearchRecency = "day" | "week" | "month" | "any";
+
+type DiscoveryQuery = {
+  query: string;
+  recency: SearchRecency;
+  kind: "core" | "rotating";
+};
+
+const CORE_QUERIES: DiscoveryQuery[] = [
+  { kind: "core", recency: "week", query: 'site:reddit.com "can\'t find" "plastic clip" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "discontinued" "interior trim" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "OEM unavailable" bracket car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "replacement part not available" "classic car" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "no longer available" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "can\'t find" "interior cover" "VW Golf" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
 ];
 
-type SearchRecency = "day" | "week" | "month" | "any";
+const ROTATING_QUERIES: DiscoveryQuery[] = [
+  { kind: "rotating", recency: "day", query: 'site:reddit.com "can\'t find" "trim piece" "MX5 NA" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com "where can I get" "dashboard trim" "MX5" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com "discontinued" "retainer clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com "obsolete" "car trim clip" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:mx5oc.co.uk "discontinued" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:bimmerforums.com "can\'t find" "trim piece" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+];
+
+const MAX_DISCOVERY_QUERIES = 10;
 
 function isTruthy(value: string | undefined) {
   return Boolean(value && /^(1|true|yes|on)$/i.test(value.trim()));
@@ -43,13 +54,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getSearchRecency(): SearchRecency {
-  const value = process.env.PRELEAD_SEARCH_RECENCY?.trim().toLowerCase();
-  if (value === "day" || value === "week" || value === "month" || value === "any") {
-    return value;
-  }
+function getDaySeed() {
+  const today = new Date();
+  return Math.floor(today.getTime() / 86400000);
+}
 
-  return "week";
+function getDiscoveryQueries() {
+  const rotatingSlots = Math.max(0, MAX_DISCOVERY_QUERIES - CORE_QUERIES.length);
+  const start = ROTATING_QUERIES.length > 0 ? getDaySeed() % ROTATING_QUERIES.length : 0;
+  const rotating = Array.from({ length: rotatingSlots }, (_, index) => ROTATING_QUERIES[(start + index) % ROTATING_QUERIES.length]);
+  return [...CORE_QUERIES, ...rotating];
 }
 
 function recencyToTbs(recency: SearchRecency) {
@@ -135,7 +149,7 @@ type SerpApiResponse = {
   organic_results?: SerpApiOrganicResult[];
 };
 
-async function fetchSerpApiQuery(query: string, apiKey: string) {
+async function fetchSerpApiQuery(query: string, apiKey: string, recency: SearchRecency) {
   const url = new URL("https://serpapi.com/search.json");
   url.searchParams.set("engine", "google");
   url.searchParams.set("q", query);
@@ -144,7 +158,6 @@ async function fetchSerpApiQuery(query: string, apiKey: string) {
   url.searchParams.set("gl", "uk");
   url.searchParams.set("hl", "en");
 
-  const recency = getSearchRecency();
   const tbs = recencyToTbs(recency);
   if (tbs) {
     url.searchParams.set("tbs", tbs);
@@ -194,17 +207,17 @@ export function createSerpapiAdapter(logger?: AdapterLogger): PreleadAdapter {
     async fetchCandidates() {
       const all: RawPreleadCandidate[] = [];
       let failedQueries = 0;
-      const recency = getSearchRecency();
+      const queries = getDiscoveryQueries();
 
       if (isTruthy(process.env.PRELEAD_DEBUG)) {
-        console.log(`[preleads] search recency: ${recency}`);
+        console.log(`[preleads] discovery queries: ${queries.length}/${MAX_DISCOVERY_QUERIES}`);
       }
-      logger?.debug("active query set: machining_problem_queries");
+      logger?.debug("active query set: scarcity_first_automotive");
 
-      for (const query of QUERIES) {
+      for (const { query, recency, kind } of queries) {
         try {
-          logger?.debug(`serpapi query: ${query}`);
-          const results = await fetchSerpApiQuery(query, apiKey);
+          logger?.debug(`serpapi query (${kind}, ${recency}): ${query}`);
+          const results = await fetchSerpApiQuery(query, apiKey, recency);
 
           for (const item of results) {
             const title = typeof item.title === "string" ? item.title.trim() : "";
@@ -237,7 +250,7 @@ export function createSerpapiAdapter(logger?: AdapterLogger): PreleadAdapter {
         await sleep(500);
       }
 
-      if (failedQueries === QUERIES.length) {
+      if (failedQueries === queries.length) {
         throw new Error("All SerpAPI queries failed");
       }
 
