@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireAdminUser } from '@/lib/admin-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase-admin'
 import { scoreLeadValue } from '@/lib/lead-value'
@@ -109,12 +110,12 @@ function QuoteItem({ quote }: { quote: DashboardQuote }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <a
+        <Link
           href="/admin/quotes"
           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
         >
           View
-        </a>
+        </Link>
       </div>
     </article>
   )
@@ -170,7 +171,7 @@ export default async function AdminPage() {
               <h2 className="text-2xl font-bold text-slate-900">Top Leads</h2>
               <p className="mt-1 text-sm text-slate-600">High-value, active, not contacted yet.</p>
             </div>
-            <a href="/admin/preleads?status=active&value=high" className="text-sm font-medium text-cyan-700 hover:underline">Open all</a>
+            <Link href="/admin/preleads?status=active&value=high" className="text-sm font-medium text-cyan-700 hover:underline">Open all</Link>
           </div>
 
           <div className="grid gap-4">
@@ -184,7 +185,7 @@ export default async function AdminPage() {
               <h2 className="text-2xl font-bold text-slate-900">Inbound Leads</h2>
               <p className="mt-1 text-sm text-slate-600">Recent inbound submissions.</p>
             </div>
-            <a href="/admin/preleads?source=inbound" className="text-sm font-medium text-cyan-700 hover:underline">Open all</a>
+            <Link href="/admin/preleads?source=inbound" className="text-sm font-medium text-cyan-700 hover:underline">Open all</Link>
           </div>
 
           <div className="grid gap-4">
@@ -198,7 +199,7 @@ export default async function AdminPage() {
               <h2 className="text-2xl font-bold text-slate-900">Active Quotes</h2>
               <p className="mt-1 text-sm text-slate-600">Quotes that still need attention.</p>
             </div>
-            <a href="/admin/quotes" className="text-sm font-medium text-cyan-700 hover:underline">Open all</a>
+            <Link href="/admin/quotes" className="text-sm font-medium text-cyan-700 hover:underline">Open all</Link>
           </div>
 
           <div className="grid gap-4">

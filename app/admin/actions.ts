@@ -44,6 +44,16 @@ const allowedSupplierFeeStatuses = new Set<SupplierFeeStatus>([
 type InvoiceStatus = "unbilled" | "invoiced" | "paid";
 const allowedInvoiceStatuses = new Set<InvoiceStatus>(["unbilled", "invoiced", "paid"]);
 
+type WorkbenchManufacturable = "yes" | "no" | "maybe";
+type WorkbenchComplexity = "low" | "medium" | "high";
+type WorkbenchCadRequired = "yes" | "no";
+type WorkbenchAction = "save" | "send_refined_quote" | "ask_more_details" | "reject";
+
+const allowedWorkbenchManufacturable = new Set<WorkbenchManufacturable>(["yes", "no", "maybe"]);
+const allowedWorkbenchComplexities = new Set<WorkbenchComplexity>(["low", "medium", "high"]);
+const allowedWorkbenchCadRequired = new Set<WorkbenchCadRequired>(["yes", "no"]);
+const allowedWorkbenchActions = new Set<WorkbenchAction>(["save", "send_refined_quote", "ask_more_details", "reject"]);
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -69,6 +79,10 @@ function parseOptionalNumber(value: FormDataEntryValue | null) {
 
 function cleanString(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
+}
+
+function isEmpty(value: string | null | undefined) {
+  return !String(value ?? "").trim();
 }
 
 function appendTrackingNote(existingNotes: string | null, title: string, entries: Array<string | null>) {
@@ -112,6 +126,15 @@ async function updateQuoteWithCommercialFallback(
     const fallback = await supabase.from("quotes").update({ notes }).eq("id", quoteId);
     error = fallback.error;
   }
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function updateQuoteWorkbenchFields(quoteId: string, update: Record<string, unknown>) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("quotes").update(update).eq("id", quoteId);
 
   if (error) {
     throw new Error(error.message);
@@ -308,6 +331,80 @@ export async function saveCommercialQuoteFields(formData: FormData) {
     supplierNotes ? `supplier_notes: ${supplierNotes}` : null,
   ]);
 
+  revalidatePath("/internal-admin");
+}
+
+export async function saveQuoteWorkbench(formData: FormData) {
+  const quoteId = cleanString(formData.get("quoteId"));
+  const action = (cleanString(formData.get("workbenchAction")) || "save") as WorkbenchAction;
+
+  if (!quoteId) {
+    throw new Error("Missing quote id.");
+  }
+
+  if (!allowedWorkbenchActions.has(action)) {
+    throw new Error("Invalid workbench action.");
+  }
+
+  const partType = cleanString(formData.get("partType")) || null;
+  const manufacturable = cleanString(formData.get("manufacturable")) as WorkbenchManufacturable;
+  const cadRequired = cleanString(formData.get("cadRequired")) as WorkbenchCadRequired;
+  const complexity = cleanString(formData.get("complexity")) as WorkbenchComplexity;
+  const internalNotes = cleanString(formData.get("internalNotes")) || null;
+  const researchNotes = cleanString(formData.get("researchNotes")) || null;
+  const cadCostMin = parseOptionalNumber(formData.get("cadCostMin"));
+  const cadCostMax = parseOptionalNumber(formData.get("cadCostMax"));
+  const manufacturingCostMin = parseOptionalNumber(formData.get("manufacturingCostMin"));
+  const manufacturingCostMax = parseOptionalNumber(formData.get("manufacturingCostMax"));
+  const totalEstimateMin = parseOptionalNumber(formData.get("totalEstimateMin"));
+  const totalEstimateMax = parseOptionalNumber(formData.get("totalEstimateMax"));
+  const estimateConfidence = cleanString(formData.get("estimateConfidence")) || null;
+
+  if (manufacturable && !allowedWorkbenchManufacturable.has(manufacturable)) {
+    throw new Error("Invalid manufacturable value.");
+  }
+
+  if (cadRequired && !allowedWorkbenchCadRequired.has(cadRequired)) {
+    throw new Error("Invalid CAD requirement value.");
+  }
+
+  if (complexity && !allowedWorkbenchComplexities.has(complexity)) {
+    throw new Error("Invalid complexity value.");
+  }
+
+  const update: Record<string, unknown> = {
+    part_type: isEmpty(partType) ? null : partType,
+    manufacturable: isEmpty(manufacturable) ? null : manufacturable,
+    cad_required: isEmpty(cadRequired) ? null : cadRequired,
+    complexity: isEmpty(complexity) ? null : complexity,
+    internal_notes: internalNotes,
+    research_notes: researchNotes,
+    cad_cost_min: cadCostMin,
+    cad_cost_max: cadCostMax,
+    manufacturing_cost_min: manufacturingCostMin,
+    manufacturing_cost_max: manufacturingCostMax,
+    total_estimate_min: totalEstimateMin,
+    total_estimate_max: totalEstimateMax,
+    estimate_confidence: estimateConfidence,
+  };
+
+  if (action === "ask_more_details") {
+    update.quote_status = "awaiting_final_details";
+  }
+
+  if (action === "reject") {
+    update.status = "lost";
+    update.quote_status = "lost";
+  }
+
+  if (action === "send_refined_quote") {
+    update.quote_status = "quoted";
+  }
+
+  await updateQuoteWorkbenchFields(quoteId, update);
+
+  revalidatePath(`/admin/quotes/${quoteId}`);
+  revalidatePath("/admin/quotes");
   revalidatePath("/internal-admin");
 }
 

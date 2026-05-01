@@ -1,8 +1,8 @@
 import { requireAdminUser } from '@/lib/admin-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase-admin'
 import { normalizeQuoteVisibilityStatus, quoteVisibilityLabel, type QuoteVisibilityStatus } from '@/lib/quote-visibility'
-import ResearchTools from '@/app/components/ResearchTools'
 import QuoteVisibilityActions from '@/app/internal-admin/QuoteVisibilityActions'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,18 +105,13 @@ function QuoteCard({ quote }: { quote: QuoteRecord }) {
         </div>
       </div>
 
-      <div className="mt-4">
-        <ResearchTools
-          searchContext={
-            quote.search_context ||
-            [quote.vehicle_make, quote.vehicle_model, quote.vehicle_year, quote.model_specifics, quoteDescription(quote), quote.issue_type, quote.size_estimate]
-              .filter(Boolean)
-              .join(' ')
-          }
-        />
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Link
+          href={`/admin/quotes/${quote.id}`}
+          className="inline-flex rounded-xl bg-cyan-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-700"
+        >
+          Open workbench
+        </Link>
         <QuoteVisibilityActions quoteId={quote.id} status={status} />
       </div>
     </article>
