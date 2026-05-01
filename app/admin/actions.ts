@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defaultQuoteStatus, quoteStatusOptions, type QuoteStatus } from "@/lib/quote-statuses";
 import { sendIntroductionEmail } from "@/lib/notifications";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { buildSearchContext } from "@/lib/research-context";
 
 const allowedStatuses = new Set<QuoteStatus>(
   quoteStatusOptions.map((option) => option.value)
@@ -47,12 +48,18 @@ const allowedInvoiceStatuses = new Set<InvoiceStatus>(["unbilled", "invoiced", "
 type WorkbenchManufacturable = "yes" | "no" | "maybe";
 type WorkbenchComplexity = "low" | "medium" | "high";
 type WorkbenchCadRequired = "yes" | "no";
-type WorkbenchAction = "save" | "send_refined_quote" | "ask_more_details" | "reject";
+type WorkbenchAction = "save" | "mark_sent";
 
 const allowedWorkbenchManufacturable = new Set<WorkbenchManufacturable>(["yes", "no", "maybe"]);
 const allowedWorkbenchComplexities = new Set<WorkbenchComplexity>(["low", "medium", "high"]);
 const allowedWorkbenchCadRequired = new Set<WorkbenchCadRequired>(["yes", "no"]);
-const allowedWorkbenchActions = new Set<WorkbenchAction>(["save", "send_refined_quote", "ask_more_details", "reject"]);
+const allowedWorkbenchActions = new Set<WorkbenchAction>(["save", "mark_sent"]);
+
+export type QuoteWorkbenchActionState = {
+  status: "idle" | "saved" | "sent" | "error";
+  message: string | null;
+  error: string | null;
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -334,78 +341,130 @@ export async function saveCommercialQuoteFields(formData: FormData) {
   revalidatePath("/internal-admin");
 }
 
-export async function saveQuoteWorkbench(formData: FormData) {
-  const quoteId = cleanString(formData.get("quoteId"));
-  const action = (cleanString(formData.get("workbenchAction")) || "save") as WorkbenchAction;
+export async function saveQuoteWorkbench(
+  _prevState: QuoteWorkbenchActionState,
+  formData: FormData
+): Promise<QuoteWorkbenchActionState> {
+  try {
+    const quoteId = cleanString(formData.get("quoteId"));
+    const action = (cleanString(formData.get("workbenchAction")) || "save") as WorkbenchAction;
 
-  if (!quoteId) {
-    throw new Error("Missing quote id.");
+    if (!quoteId) {
+      return { status: "error", message: null, error: "Missing quote id." };
+    }
+
+    if (!allowedWorkbenchActions.has(action)) {
+      return { status: "error", message: null, error: "Invalid workbench action." };
+    }
+
+    const partType = cleanString(formData.get("part_type")) || null;
+    const manufacturable = cleanString(formData.get("manufacturable")) as WorkbenchManufacturable;
+    const cadRequired = cleanString(formData.get("cad_required")) as WorkbenchCadRequired;
+    const complexity = cleanString(formData.get("complexity")) as WorkbenchComplexity;
+    const internalNotes = cleanString(formData.get("internal_notes")) || null;
+    const researchNotes = cleanString(formData.get("research_notes")) || null;
+    const cadCostMin = parseOptionalNumber(formData.get("cad_cost_min"));
+    const cadCostMax = parseOptionalNumber(formData.get("cad_cost_max"));
+    const manufacturingCostMin = parseOptionalNumber(formData.get("manufacturing_cost_min"));
+    const manufacturingCostMax = parseOptionalNumber(formData.get("manufacturing_cost_max"));
+    const totalEstimateMin = parseOptionalNumber(formData.get("total_estimate_min"));
+    const totalEstimateMax = parseOptionalNumber(formData.get("total_estimate_max"));
+    const estimateConfidence = cleanString(formData.get("estimate_confidence")) || null;
+    const quoteMessage = cleanString(formData.get("quote_message")) || null;
+    const vehicleMake = cleanString(formData.get("vehicle_make")) || null;
+    const vehicleModel = cleanString(formData.get("vehicle_model")) || null;
+    const vehicleYear = cleanString(formData.get("vehicle_year")) || null;
+    const modelSpecifics = cleanString(formData.get("model_specifics")) || null;
+    const issueType = cleanString(formData.get("issue_type")) || null;
+    const sizeEstimate = cleanString(formData.get("size_estimate")) || null;
+    const description = cleanString(formData.get("description")) || null;
+
+    if (manufacturable && !allowedWorkbenchManufacturable.has(manufacturable)) {
+      return { status: "error", message: null, error: "Invalid manufacturable value." };
+    }
+
+    if (cadRequired && !allowedWorkbenchCadRequired.has(cadRequired)) {
+      return { status: "error", message: null, error: "Invalid CAD requirement value." };
+    }
+
+    if (complexity && !allowedWorkbenchComplexities.has(complexity)) {
+      return { status: "error", message: null, error: "Invalid complexity value." };
+    }
+
+    const customerName = cleanString(formData.get("customer_name"));
+    const update: Record<string, unknown> = {
+      vehicle_make: vehicleMake,
+      vehicle_model: vehicleModel,
+      vehicle_year: vehicleYear,
+      model_specifics: modelSpecifics,
+      issue_type: issueType,
+      size_estimate: sizeEstimate,
+      description,
+      part_type: isEmpty(partType) ? null : partType,
+      manufacturable: isEmpty(manufacturable) ? null : manufacturable,
+      cad_required: isEmpty(cadRequired) ? null : cadRequired,
+      complexity: isEmpty(complexity) ? null : complexity,
+      internal_notes: internalNotes,
+      research_notes: researchNotes,
+      cad_cost_min: cadCostMin,
+      cad_cost_max: cadCostMax,
+      manufacturing_cost_min: manufacturingCostMin,
+      manufacturing_cost_max: manufacturingCostMax,
+      total_estimate_min: totalEstimateMin,
+      total_estimate_max: totalEstimateMax,
+      estimate_confidence: estimateConfidence,
+      quote_message: quoteMessage,
+      search_context: buildSearchContext({
+        vehicle_make: vehicleMake,
+        vehicle_model: vehicleModel,
+        vehicle_year: vehicleYear,
+        model_specifics: modelSpecifics,
+        description,
+        issue_type: issueType,
+        size_estimate: sizeEstimate,
+      }),
+    };
+
+    if (customerName) {
+      update.name = customerName;
+    }
+
+    if (action === "mark_sent") {
+      const supabase = createSupabaseAdminClient();
+      const { data: current, error: fetchError } = await supabase
+        .from("quotes")
+        .select("contacted_at, quote_sent_at")
+        .eq("id", quoteId)
+        .single();
+
+      if (fetchError) {
+        return { status: "error", message: null, error: fetchError.message };
+      }
+
+      const timestamp = nowIso();
+      update.status = "contacted";
+      update.contacted_at = current?.contacted_at ?? timestamp;
+      update.quote_sent_at = current?.quote_sent_at ?? timestamp;
+    }
+
+    await updateQuoteWorkbenchFields(quoteId, update);
+
+    revalidatePath(`/admin/quotes/${quoteId}`);
+    revalidatePath("/admin/quotes");
+    revalidatePath("/internal-admin");
+
+    return {
+      status: action === "mark_sent" ? "sent" : "saved",
+      message: action === "mark_sent" ? "Marked sent." : "Saved changes.",
+      error: null,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: null,
+      error: error instanceof Error ? error.message : "Unexpected error.",
+    };
   }
-
-  if (!allowedWorkbenchActions.has(action)) {
-    throw new Error("Invalid workbench action.");
-  }
-
-  const partType = cleanString(formData.get("partType")) || null;
-  const manufacturable = cleanString(formData.get("manufacturable")) as WorkbenchManufacturable;
-  const cadRequired = cleanString(formData.get("cadRequired")) as WorkbenchCadRequired;
-  const complexity = cleanString(formData.get("complexity")) as WorkbenchComplexity;
-  const internalNotes = cleanString(formData.get("internalNotes")) || null;
-  const researchNotes = cleanString(formData.get("researchNotes")) || null;
-  const cadCostMin = parseOptionalNumber(formData.get("cadCostMin"));
-  const cadCostMax = parseOptionalNumber(formData.get("cadCostMax"));
-  const manufacturingCostMin = parseOptionalNumber(formData.get("manufacturingCostMin"));
-  const manufacturingCostMax = parseOptionalNumber(formData.get("manufacturingCostMax"));
-  const totalEstimateMin = parseOptionalNumber(formData.get("totalEstimateMin"));
-  const totalEstimateMax = parseOptionalNumber(formData.get("totalEstimateMax"));
-  const estimateConfidence = cleanString(formData.get("estimateConfidence")) || null;
-
-  if (manufacturable && !allowedWorkbenchManufacturable.has(manufacturable)) {
-    throw new Error("Invalid manufacturable value.");
-  }
-
-  if (cadRequired && !allowedWorkbenchCadRequired.has(cadRequired)) {
-    throw new Error("Invalid CAD requirement value.");
-  }
-
-  if (complexity && !allowedWorkbenchComplexities.has(complexity)) {
-    throw new Error("Invalid complexity value.");
-  }
-
-  const update: Record<string, unknown> = {
-    part_type: isEmpty(partType) ? null : partType,
-    manufacturable: isEmpty(manufacturable) ? null : manufacturable,
-    cad_required: isEmpty(cadRequired) ? null : cadRequired,
-    complexity: isEmpty(complexity) ? null : complexity,
-    internal_notes: internalNotes,
-    research_notes: researchNotes,
-    cad_cost_min: cadCostMin,
-    cad_cost_max: cadCostMax,
-    manufacturing_cost_min: manufacturingCostMin,
-    manufacturing_cost_max: manufacturingCostMax,
-    total_estimate_min: totalEstimateMin,
-    total_estimate_max: totalEstimateMax,
-    estimate_confidence: estimateConfidence,
-  };
-
-  if (action === "ask_more_details") {
-    update.quote_status = "awaiting_final_details";
-  }
-
-  if (action === "reject") {
-    update.status = "lost";
-    update.quote_status = "lost";
-  }
-
-  if (action === "send_refined_quote") {
-    update.quote_status = "quoted";
-  }
-
-  await updateQuoteWorkbenchFields(quoteId, update);
-
-  revalidatePath(`/admin/quotes/${quoteId}`);
-  revalidatePath("/admin/quotes");
-  revalidatePath("/internal-admin");
 }
 
 export async function introduceQuoteToPartner(formData: FormData) {
