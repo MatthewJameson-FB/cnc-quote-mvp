@@ -1,15 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { calculateQuote, type Material, type Complexity } from "@/lib/pricing";
 import type { EstimateQuoteResult } from "@/lib/estimate-quote";
 import {
-  descriptionPresent,
   determineStage,
   inferManufacturingType,
-  measurementsPresent,
   routeLead,
   validateLeadIntake,
   type IntakeMaterialPreference,
@@ -46,44 +43,37 @@ function mapMaterialPreferenceToPricingMaterial(material: IntakeMaterialPreferen
   }
 }
 
-function UploadCard({
-  title,
-  description,
+function UploadArea({
   valueLabel,
   emptyLabel,
   buttonLabel,
   accept,
-  multiple = false,
   onPick,
   onClear,
 }: {
-  title: string;
-  description: string;
   valueLabel: string | null;
   emptyLabel: string;
   buttonLabel: string;
   accept: string;
-  multiple?: boolean;
   onPick: (files: FileList | null) => void;
   onClear: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <input
         ref={inputRef}
         className="hidden"
         type="file"
         accept={accept}
-        multiple={multiple}
+        multiple
         onChange={(e) => onPick(e.target.files)}
       />
 
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-base font-semibold text-slate-900">{title}</h3>
             {valueLabel ? (
               <button
                 type="button"
@@ -92,23 +82,22 @@ function UploadCard({
                   if (inputRef.current) inputRef.current.value = "";
                 }}
                 className="shrink-0 rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900"
-              >
+                >
                 Clear
               </button>
             ) : null}
           </div>
-          <p className="text-sm leading-6 text-slate-500">{description}</p>
         </div>
 
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             {buttonLabel}
           </button>
-          <p className="mt-3 break-words text-sm text-slate-500">{valueLabel || emptyLabel}</p>
+          <p className="mt-3 break-words text-sm text-slate-600">{valueLabel || emptyLabel}</p>
         </div>
       </div>
     </div>
@@ -138,14 +127,13 @@ export default function QuoteIntakeForm() {
   const hasFile = Boolean(file);
   const hasPhotos = photos.length > 0;
   const stage = determineStage(hasFile, hasPhotos);
-  const measurementsReady = measurementsPresent(measurement);
-  const descriptionReady = descriptionPresent(description);
+  const effectiveMeasurement = measurement.trim() || (hasPhotos ? "photos only" : "");
   const manufacturingType = inferManufacturingType(material, hasFile);
   const routingDecision = routeLead({ stage, manufacturing_type: manufacturingType });
   const intakeValidation = validateLeadIntake({
     has_file: hasFile,
     has_photos: hasPhotos,
-    measurements: measurement,
+    measurements: effectiveMeasurement,
     description,
   });
 
@@ -162,8 +150,22 @@ export default function QuoteIntakeForm() {
     [pricingMaterial, complexity]
   );
 
-  const fileLabel = file ? file.name : null;
-  const photoLabel = photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"} selected` : null;
+  const uploadLabel = [
+    photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : null,
+    file ? file.name : null,
+  ]
+    .filter(Boolean)
+    .join(" • ") || null;
+
+  function handleMixedUpload(files: FileList | null) {
+    const selected = Array.from(files ?? []);
+    const isImage = (item: File) => /\.(png|jpe?g|webp|gif)$/i.test(item.name) || item.type.startsWith("image/");
+    const nextPhotos = selected.filter(isImage);
+    const nextFile = selected.find((item) => !isImage(item)) ?? null;
+
+    setPhotos(nextPhotos);
+    setFile(nextFile);
+  }
 
   async function handleSubmit() {
     setSubmitError(null);
@@ -201,8 +203,8 @@ export default function QuoteIntakeForm() {
       formData.append("stage", stage);
       formData.append("manufacturing_type", manufacturingType);
       formData.append("routing_decision", routingDecision);
-      formData.append("measurement", measurement);
-      formData.append("measurements", measurement);
+      formData.append("measurement", effectiveMeasurement);
+      formData.append("measurements", effectiveMeasurement);
       formData.append("description", description);
       formData.append("notes", "");
       if (preleadId) {
@@ -247,113 +249,61 @@ export default function QuoteIntakeForm() {
                 Can’t find a replacement car part?
               </h1>
               <p className="text-lg leading-8 text-slate-300 sm:text-xl">
-                Upload a photo — we help recreate hard-to-find trim, clips, covers, brackets and fittings.
+                Upload a few photos and tell us what broke. We&apos;ll see if it can be recreated.
               </p>
-              <Link
-                href="/submit-part"
-                className="inline-flex rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500"
+              <a
+                href="#upload"
+                className="inline-flex rounded-full bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500"
               >
-                Upload your part
-              </Link>
-            </div>
+                Start with photos
+              </a>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h2 className="text-lg font-semibold text-white">Parts we can help with</h2>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-                  <li>Interior trim clips</li>
-                  <li>Dashboard covers</li>
-                  <li>Door panel brackets</li>
-                  <li>Mirror casings</li>
-                  <li>Bumper trim pieces</li>
-                  <li>Caravan and motorhome fittings</li>
-                </ul>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200">Interior trim clip</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200">Dashboard cover</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200">Door panel bracket</span>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <h2 className="text-lg font-semibold text-white">Best for hard-to-find parts</h2>
-                <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-                  <li>Discontinued parts</li>
-                  <li>Missing clips or covers</li>
-                  <li>Broken trim or brackets</li>
-                  <li>Parts the manufacturer no longer sells</li>
-                  <li>Small external plastic or metal fittings</li>
-                </ul>
-              </div>
+
+              <p className="pt-1 text-sm text-slate-300">Best for trim, clips, covers, brackets and discontinued parts.</p>
             </div>
-
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-5">
-              <h2 className="text-lg font-semibold text-white">Not suitable for</h2>
-              <ul className="mt-3 grid gap-2 text-sm leading-6 text-slate-300 sm:grid-cols-3">
-                <li>Engines or gearboxes</li>
-                <li>Sensors, wiring or electronics</li>
-                <li>Safety-critical components</li>
-                <li>Diagnostic repair issues</li>
-              </ul>
-            </div>
-
-            <div className="grid gap-3 text-sm text-slate-300 sm:grid-cols-5">
-              <a href="/replacement-car-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Car parts</a>
-              <a href="/replacement-caravan-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Caravan parts</a>
-              <a href="/replacement-plastic-parts-uk" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Plastic parts</a>
-              <a href="/cant-find-replacement-part" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Can’t find replacement part</a>
-              <a href="/submit-part" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10">Upload your part</a>
-            </div>
-
-            <ul className="space-y-3 text-base text-slate-200">
-              <li className="flex items-start gap-3">
-                <span className="mt-1 text-cyan-300">✓</span>
-                <span>Upload file or photos</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="mt-1 text-cyan-300">✓</span>
-                <span>We review &amp; route</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="mt-1 text-cyan-300">✓</span>
-                <span>You get it made</span>
-              </li>
-            </ul>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-cyan-400/30 bg-white/5 p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">Lane 1</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">I have a file</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  STL, STEP, CAD or drawing — fastest route to quote.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-300">Lane 2</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">I only have photos</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Upload photos and measurements so we can assess CAD recreation.
-                </p>
-              </div>
-            </div>
-
-            <p className="max-w-2xl text-sm leading-6 text-slate-400">
-              Photo-based requests may need CAD recreation before manufacturing.
-            </p>
           </section>
 
           <section className="min-w-0">
-            <div className="w-full rounded-xl border border-white/10 bg-white p-6 shadow-2xl shadow-black/20 sm:p-8">
-              <div className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2">
+            <div id="upload" className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">Start here</p>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-950">Upload photos or a file</h2>
+                  <p className="text-sm leading-6 text-slate-600">Photos are enough to start. CAD files are optional.</p>
+                </div>
+
+                <UploadArea
+                  valueLabel={uploadLabel}
+                  emptyLabel="No uploads selected"
+                  buttonLabel="Choose photos or file"
+                  accept=".png,.jpg,.jpeg,.webp,.gif,.step,.stp,.dxf,.dwg,.pdf,.stl,.obj,.3mf"
+                  onPick={handleMixedUpload}
+                  onClear={() => {
+                    setFile(null);
+                    setPhotos([]);
+                  }}
+                />
+
+                <div className="grid gap-4">
                   <label className="grid min-w-0 gap-2">
-                    <span className="text-sm font-medium text-slate-700">Name</span>
-                    <input
-                      className="min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Your name"
+                    <span className="text-sm font-medium text-slate-700">What part do you need?</span>
+                    <textarea
+                      className="min-h-28 min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Example: missing dashboard trim clip from a 2012 BMW 3 Series"
                     />
                   </label>
 
                   <label className="grid min-w-0 gap-2">
                     <span className="text-sm font-medium text-slate-700">Email</span>
                     <input
-                      className="min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                      className="min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -362,127 +312,75 @@ export default function QuoteIntakeForm() {
                   </label>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="grid min-w-0 gap-2">
-                    <span className="text-sm font-medium text-slate-700">Company</span>
-                    <input
-                      className="min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="Optional"
-                    />
-                  </label>
+                <details className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">Add more details</summary>
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid min-w-0 gap-2">
+                        <span className="text-sm font-medium text-slate-700">Name</span>
+                        <input
+                          className="min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
 
-                  <label className="grid min-w-0 gap-2">
-                    <span className="text-sm font-medium text-slate-700">Phone</span>
-                    <input
-                      className="min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Optional"
-                    />
-                  </label>
-                </div>
+                      <label className="grid min-w-0 gap-2">
+                        <span className="text-sm font-medium text-slate-700">Phone</span>
+                        <input
+                          className="min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
+                    </div>
 
-                <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <UploadCard
-                      title="I have a file"
-                      description="STL, STEP, CAD or drawing — fastest route to quote."
-                      valueLabel={fileLabel}
-                      emptyLabel="No file selected"
-                      buttonLabel="Choose file"
-                      accept=".step,.stp,.dxf,.dwg,.pdf,.stl,.obj,.3mf"
-                      onPick={(files) => setFile(files?.[0] || null)}
-                      onClear={() => setFile(null)}
-                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid min-w-0 gap-2">
+                        <span className="text-sm font-medium text-slate-700">Company</span>
+                        <input
+                          className="min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
 
-                    <UploadCard
-                      title="I only have photos"
-                      description="Upload photos and measurements so we can assess CAD recreation."
-                      valueLabel={photoLabel}
-                      emptyLabel="No photos selected"
-                      buttonLabel="Choose photos"
-                      accept=".png,.jpg,.jpeg,.webp"
-                      multiple
-                      onPick={(files) => setPhotos(Array.from(files ?? []))}
-                      onClear={() => setPhotos([])}
-                    />
-                  </div>
+                      <label className="grid min-w-0 gap-2">
+                        <span className="text-sm font-medium text-slate-700">Material</span>
+                        <select
+                          className="min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                          value={material}
+                          onChange={(e) => setMaterial(e.target.value as IntakeMaterialPreference)}
+                        >
+                          <option value="not_sure">Not sure</option>
+                          <option value="pla_standard_plastic">PLA / standard plastic</option>
+                          <option value="resin">Resin</option>
+                          <option value="abs_asa">ABS / ASA</option>
+                          <option value="nylon">Nylon</option>
+                          <option value="petg">PETG</option>
+                          <option value="aluminium">Aluminium</option>
+                          <option value="steel">Steel</option>
+                          <option value="stainless_steel">Stainless steel</option>
+                          <option value="brass">Brass</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </label>
+                    </div>
 
-                  <p className="text-sm text-slate-500">
-                    Upload at least one: a file or photos of the part.
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    Photo-based requests may need CAD recreation before manufacturing.
-                  </p>
-                </div>
-
-                <label className="grid min-w-0 gap-2">
-                  <span className="text-sm font-medium text-slate-700">Material</span>
-                  <select
-                    className="min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
-                    value={material}
-                    onChange={(e) => setMaterial(e.target.value as IntakeMaterialPreference)}
-                  >
-                    <option value="not_sure">Not sure</option>
-                    <option value="pla_standard_plastic">PLA / standard plastic</option>
-                    <option value="resin">Resin</option>
-                    <option value="abs_asa">ABS / ASA</option>
-                    <option value="nylon">Nylon</option>
-                    <option value="petg">PETG</option>
-                    <option value="aluminium">Aluminium</option>
-                    <option value="steel">Steel</option>
-                    <option value="stainless_steel">Stainless steel</option>
-                    <option value="brass">Brass</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>
-
-                {hasPhotos ? (
-                  <div className="grid gap-4">
                     <label className="grid min-w-0 gap-2">
-                      <span className="text-sm font-medium text-slate-700">Measurement</span>
+                      <span className="text-sm font-medium text-slate-700">Dimensions</span>
                       <input
-                        className="min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
+                        className="min-w-0 rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
                         value={measurement}
                         onChange={(e) => setMeasurement(e.target.value)}
-                        placeholder="e.g. width = 45mm"
+                        placeholder="Optional"
                       />
-                      <span className="text-xs leading-5 text-slate-500">
-                        Include at least one real-world measurement, e.g. width = 45mm.
-                      </span>
                     </label>
-
-                    <label className="grid min-w-0 gap-2">
-                      <span className="text-sm font-medium text-slate-700">Description</span>
-                      <textarea
-                        className="min-h-28 min-w-0 rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="What is this part? What does it connect to? What needs to fit exactly?"
-                      />
-                      <span className="text-xs leading-5 text-slate-500">
-                        If the part must fit something exactly, mention that in the description.
-                      </span>
-                    </label>
-
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      <p>For best results, upload front, side and top views.</p>
-                    </div>
                   </div>
-                ) : null}
-
-                {hasPhotos ? (
-                  <div className="flex flex-wrap gap-2 text-xs font-medium">
-                    <span className={`rounded-full px-3 py-1 ${measurementsReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                      Measurement {measurementsReady ? "included" : "needed"}
-                    </span>
-                    <span className={`rounded-full px-3 py-1 ${descriptionReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                      Description {descriptionReady ? "included" : "needed"}
-                    </span>
-                  </div>
-                ) : null}
+                </details>
 
                 {submitError ? (
                   <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -493,19 +391,19 @@ export default function QuoteIntakeForm() {
                 <div className="space-y-3">
                   <button
                     type="button"
-                    className="inline-flex w-full items-center justify-center rounded-xl bg-cyan-600 px-6 py-3.5 text-base font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-cyan-600 px-6 py-3.5 text-base font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={handleSubmit}
                     disabled={submitting}
                   >
-                    {submitting ? "Submitting..." : "Submit part request"}
+                    {submitting ? "Submitting..." : "Send photos"}
                   </button>
-                  <p className="text-center text-sm text-slate-500">We&apos;ll review and get back to you.</p>
+                  <p className="text-center text-sm text-slate-500">Thanks — we’ll take a look and get back to you.</p>
                 </div>
               </div>
 
               {submitted && submitResult?.estimate ? (
                 <div className="mt-6 rounded-xl border border-slate-200 bg-slate-950 p-5 text-white">
-                  <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Thanks — we’ve received your request.</p>
+                  <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Thanks — we’ll take a look and get back to you.</p>
                   <p className="mt-2 text-2xl font-bold">{quoteRef}</p>
                   <div className="mt-4 rounded-xl bg-white/5 p-4">
                     <p className="text-sm text-slate-300">Rough estimate</p>
@@ -539,40 +437,12 @@ export default function QuoteIntakeForm() {
                 <div className="mt-6 rounded-xl border border-slate-200 bg-slate-950 p-5 text-white">
                   <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Request received</p>
                   <p className="mt-2 text-2xl font-bold">{quoteRef}</p>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">We&apos;ll review your upload and get back to you.</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">Thanks — we’ll take a look and get back to you.</p>
                 </div>
               ) : null}
             </div>
           </section>
         </div>
-
-        <section className="mt-14 border-t border-white/10 pt-8">
-          <div className="max-w-3xl space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Helpful guides</h2>
-            <ul className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
-              <li>
-                <Link href="/can-you-3d-print-a-replacement-part" className="transition hover:text-white">
-                  Can you 3D print a replacement part?
-                </Link>
-              </li>
-              <li>
-                <Link href="/how-to-make-a-custom-part" className="transition hover:text-white">
-                  How to make a custom part
-                </Link>
-              </li>
-              <li>
-                <Link href="/lost-a-part-how-to-recreate-it" className="transition hover:text-white">
-                  Lost a part? How to recreate it
-                </Link>
-              </li>
-              <li>
-                <Link href="/custom-bracket-fabrication" className="transition hover:text-white">
-                  Custom bracket fabrication
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </section>
       </div>
     </main>
   );

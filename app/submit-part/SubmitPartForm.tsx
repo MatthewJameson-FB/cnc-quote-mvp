@@ -46,7 +46,7 @@ export default function SubmitPartForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 rounded-3xl border bg-white p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <label className="grid gap-2 text-sm font-medium text-slate-700">
         Upload photo
         <input
@@ -57,13 +57,13 @@ export default function SubmitPartForm() {
         />
       </label>
       <label className="grid gap-2 text-sm font-medium text-slate-700">
-        Description
+        What part do you need?
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={5}
           className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900"
-          placeholder="What is the part, what broke, and what does it need to do?"
+          placeholder="Example: missing dashboard trim clip from a 2012 BMW 3 Series"
           required
         />
       </label>
@@ -85,7 +85,7 @@ export default function SubmitPartForm() {
         disabled={submitting}
         className="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {submitting ? 'Submitting...' : 'Submit part request'}
+        {submitting ? 'Submitting...' : 'Send photo'}
       </button>
     </form>
   )
