@@ -1,38 +1,45 @@
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
+const INTENT_PHRASES = [
+  '"can\'t find part"',
+  "discontinued",
+  '"broken clip"',
+  '"missing trim"',
+  '"need replacement"',
+  '"anyone know where to get"',
+];
+
 const QUERIES = [
-  // 🔥 Broken / replacement (highest intent)
-  `site:reddit.com "broken part" "replacement"`,
-  `site:reddit.com "lost part" "replacement"`,
-  `site:reddit.com "missing piece" "fix"`,
-  `site:reddit.com "discontinued part"`,
-  `site:reddit.com "can't find replacement"`,
-
-  // 🔧 Fix / repair intent
-  `site:reddit.com "how do I fix this part"`,
-  `site:reddit.com "how to repair plastic part"`,
-  `site:reddit.com "any way to fix this"`,
-
-  // 🧩 Real-world objects
-  `site:reddit.com "car trim broken"`,
-  `site:reddit.com "washing machine part broken"`,
-  `site:reddit.com "sofa leg broken"`,
-  `site:reddit.com "window switch broken"`,
-
-  // 📐 CAD / STL frustration
-  `site:reddit.com "can't find STL"`,
-  `site:reddit.com "no STL file"`,
-  `site:reddit.com "need CAD file"`,
-
-  // 🧠 Existing 3D print intent (keep some)
-  `site:reddit.com "can someone 3d print this"`,
-  `site:reddit.com "need this 3d printed"`,
+  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("BMW E46" OR "BMW E90") (${INTENT_PHRASES.join(" OR ")})`,
+  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Audi A3" OR "Audi A4") (${INTENT_PHRASES.join(" OR ")})`,
+  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("VW Golf GTI") (${INTENT_PHRASES.join(" OR ")})`,
+  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Mazda MX5") (${INTENT_PHRASES.join(" OR ")})`,
+  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Nissan 350Z" OR "Nissan 370Z") (${INTENT_PHRASES.join(" OR ")})`,
+  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Subaru WRX STI") (${INTENT_PHRASES.join(" OR ")})`,
 ];
 
 type SearchRecency = "day" | "week" | "month" | "any";
 
 function isTruthy(value: string | undefined) {
   return Boolean(value && /^(1|true|yes|on)$/i.test(value.trim()));
+}
+
+function classifySearchResultSource(link: string): "reddit" | "forum" | "google-indexed" {
+  try {
+    const url = new URL(link);
+    const host = url.hostname.replace(/^www\./, "");
+    if (/(^|\.)reddit\.com$/i.test(host) || /(^|\.)redd\.it$/i.test(host)) {
+      return "reddit";
+    }
+
+    if (/(pistonheads\.com|forum|forums|club)/i.test(host)) {
+      return "forum";
+    }
+
+    return "google-indexed";
+  } catch {
+    return "google-indexed";
+  }
 }
 
 function sleep(ms: number) {
@@ -215,7 +222,8 @@ export function createSerpapiAdapter(logger?: AdapterLogger): PreleadAdapter {
             }
 
             all.push({
-              source: "serpapi",
+              source: classifySearchResultSource(link),
+              source_platform: classifySearchResultSource(link),
               source_url: cleanUrl,
               title,
               snippet: typeof item.snippet === "string" ? item.snippet.trim() : "",

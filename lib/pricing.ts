@@ -15,44 +15,36 @@ export const materialRates: Record<Material, number> = {
   brass: 0.4,
 };
 
-export const complexityHours: Record<Complexity, number> = {
-  simple: 0.2,
-  medium: 0.5,
-  complex: 1.0,
-};
-
 export function calculateQuote({
   material,
-  volumeCm3,
   quantity,
   complexity,
 }: {
   material: Material;
-  volumeCm3: number;
   quantity: number;
   complexity: Complexity;
 }) {
-  const setupFee = 50;
-  const hourlyRate = 60;
-  const margin = 0.3;
-  const vat = 0.2;
+  const category =
+    complexity === "simple" ? "simple_bracket_clip" : complexity === "medium" ? "medium_trim" : "complex_housing";
 
-  const materialCost = volumeCm3 * materialRates[material] * quantity;
+  const categoryPricing: Record<typeof category, { setupFee: number; labour: number; materialWeight: number; low: number; high: number }> = {
+    simple_bracket_clip: { setupFee: 35, labour: 40, materialWeight: 0.8, low: 55, high: 140 },
+    medium_trim: { setupFee: 55, labour: 65, materialWeight: 1, low: 120, high: 280 },
+    complex_housing: { setupFee: 85, labour: 95, materialWeight: 1.2, low: 220, high: 520 },
+  };
 
-  const machiningHours =
-    0.5 + (volumeCm3 / 100) * 0.2 + complexityHours[complexity];
-
-  const machiningCost = machiningHours * hourlyRate * quantity;
-
-  const subtotal = setupFee + materialCost + machiningCost;
-  const withMargin = subtotal * (1 + margin);
-  const withVat = withMargin * (1 + vat);
+  const band = categoryPricing[category];
+  const materialCost = band.materialWeight * materialRates[material] * 100;
+  const base = band.setupFee + band.labour + materialCost;
+  const withQuantity = base * Math.max(1, quantity);
+  const low = Math.max(band.low, Math.round(withQuantity * 0.85));
+  const high = Math.max(low + 20, Math.round(withQuantity * 1.2));
 
   return {
-    low: Math.round(withVat * 0.9),
-    high: Math.round(withVat * 1.2),
-    subtotal: Math.round(subtotal),
-    vatAmount: Math.round(withMargin * vat),
-    totalIncVat: Math.round(withVat),
+    low,
+    high,
+    subtotal: Math.round(withQuantity),
+    vatAmount: Math.round(withQuantity * 0.2),
+    totalIncVat: Math.round(withQuantity * 1.2),
   };
 }

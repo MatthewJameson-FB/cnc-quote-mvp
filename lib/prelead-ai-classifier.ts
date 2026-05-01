@@ -94,7 +94,7 @@ export function getAiPreleadClassifierConfig(): AiClassifierConfig {
     apiKeyPresent: Boolean(apiKey),
     apiKey,
     maxCandidates: Math.round(toBoundedNumber(process.env.AI_PRELEAD_MAX_CANDIDATES, 25, 1, 100)),
-    minConfidence: toBoundedNumber(process.env.AI_PRELEAD_MIN_CONFIDENCE, 0.7, 0, 1),
+    minConfidence: toBoundedNumber(process.env.AI_PRELEAD_MIN_CONFIDENCE, 0.6, 0, 1),
     model: process.env.AI_PRELEAD_MODEL?.trim() || "gpt-4o-mini",
   };
 }
@@ -103,7 +103,10 @@ function buildPrompt(candidate: AiPreleadCandidateInput) {
   return [
     "Decide whether this is a real buyer-problem lead for something that needs to be made.",
     "Bias toward approving genuine 3D-printing, CNC, or fabrication opportunities where someone likely needs a physical part made, replaced, prototyped, repaired, or reverse-engineered.",
-    "Prioritize automotive replacement parts only when a specific physical component is named or clearly implied; especially interior trim, dashboards, panels, brackets, mounts, clips, housings, covers, mirror casings, bumper trim, and grilles.",
+    "If the lead is acceptable, set manufacturable=true even when CAD, dimensions, or photos are missing.",
+    "Prioritize automotive replacement parts when the post clearly sounds like a missing, broken, snapped, discontinued, or unavailable part.",
+    "Accept obvious physical automotive parts even if CAD detail is missing: trim, clip, bracket, cover, casing, panel, latch, mount, grille, mirror casing, bumper trim, dashboard piece, or interior part.",
+    "Treat these as good leads when replacement intent is clear: 'Anyone know where I can get this dashboard trim piece for a 2012 BMW? Mine snapped and I can’t find one.' and 'Door panel clip broke and now the trim won’t sit flush.'",
     "Return manufacturable=false for generic repair diagnosis, engine/gearbox/transmission/ECU/sensor/wiring/electrical problems, strong outside-UK leads, and posts without a specific physical part.",
     "Prefer manufacturing_type=3d_print when the part seems plastic, small/simple, hobby/DIY, or the post mentions STL/CAD/model files, printers, resin, PLA, ABS, or printing directly.",
     "Prefer manufacturing_type=cnc when the context suggests metal, precision, tolerances, machining, automotive, engineering, aluminium, steel, stainless, milling, turning, or lathe work; but still reject non-manufacturable automotive diagnostics.",
@@ -184,7 +187,7 @@ async function classifyOneCandidate(
         {
           role: "system",
           content:
-            "You classify manufacturing leads for Flangie. Approve only if the post likely involves someone needing a real discrete physical part made, printed, modified, replaced, prototyped, fabricated, or sourced. Reject generic diagnosis, electronics, sensors, circuits, PCB, motors, engines, gearbox/transmission/ECU/wiring/electrical issues, internal appliance/machine faults, and strong outside-UK leads. Be strict about buyer intent and manufacturability. Favor automotive interior trim / broken clip / missing panel jobs only when a specific part is identifiable. Favor 3D-print leads when the part is simple/plastic/hobby-oriented or the post mentions STL/CAD/model files or printers. Keep suggested replies helpful, specific, lightly witty, and human. If there is no STL/CAD and no measurements, nudge toward photos plus one rough measurement. If repair seems to be on the table, mention it as a possible path. Avoid corporate phrasing and do not use phrases like manufacturing partner, platform, service provider, or connect you with suppliers.",
+            "You classify manufacturing leads for Flangie. Approve only if the post likely involves someone needing a real discrete physical part made, printed, modified, replaced, prototyped, fabricated, or sourced. Reject generic diagnosis, electronics, sensors, circuits, PCB, motors, engines, gearbox/transmission/ECU/wiring/electrical issues, internal appliance/machine faults, and strong outside-UK leads. Be strict about buyer intent, but do not require perfect CAD or manufacturing detail for obvious replacement-part requests. Favor automotive interior trim / broken clip / missing panel jobs when a specific part is named or clearly implied. Favor 3D-print leads when the part is simple/plastic/hobby-oriented or the post mentions STL/CAD/model files or printers. Keep suggested replies helpful, specific, lightly witty, and human. If there is no STL/CAD and no measurements, nudge toward photos plus one rough measurement. If repair seems to be on the table, mention it as a possible path. Avoid corporate phrasing and do not use phrases like manufacturing partner, platform, service provider, or connect you with suppliers.",
         },
         {
           role: "user",

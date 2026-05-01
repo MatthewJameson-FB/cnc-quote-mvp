@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { createSupabaseAdminClient, getSupabaseAdminEnvStatus } from "@/lib/supabase-admin";
 import { sendPreleadSummaryEmail } from "@/lib/notifications";
@@ -13,6 +14,7 @@ import {
 import { inferLocationSignal, type LocationInferenceResult, type LocationSignal } from "@/lib/prelead-location";
 import {
   appendPreleadLearningLog,
+  defaultPreleadLearningLogPath,
   createPreleadLearningLogId,
 } from "@/lib/prelead-learning-log";
 
@@ -2348,7 +2350,7 @@ function getFinalAiRejectionReason(
   includeOutsideUk: boolean,
   minConfidence: number
 ): FinalRejectionReason | null {
-  if (!classification.is_lead || !classification.manufacturable) return "hard_reject";
+  if (!classification.is_lead) return "hard_reject";
   if (classification.confidence < minConfidence) return "ai_confidence_too_low";
   if (looksLikeNonManufacturableRepairJob(lead)) return "hard_reject";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
@@ -2571,7 +2573,60 @@ function formatSupabaseError(error: unknown) {
     .join(" | ");
 }
 
-async function saveToSupabase(leads: Prelead[], logger: Logger) {
+function safePreview(text: string, maxLength = 120) {
+  return text.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function createInsertKey(lead: Pick<Prelead, "source_url" | "title" | "created_at">) {
+  return createHash("sha1").update(`${lead.source_url}|${lead.title}|${lead.created_at}`).digest("hex").slice(0, 12);
+}
+
+function extractRedditPostId(sourceUrl: string) {
+  const match = sourceUrl.match(/reddit\.com\/(?:r\/[^/]+\/)?comments\/([a-z0-9]+)\//i);
+  return match?.[1] ?? null;
+}
+
+function describeInsertCandidate(lead: Prelead) {
+  const postId = extractRedditPostId(lead.source_url);
+  return {
+    source: lead.source,
+    source_url: lead.source_url,
+    source_post_id: postId,
+    duplicate_key: createInsertKey(lead),
+    title_preview: safePreview(lead.title, 90),
+    post_preview: safePreview(`${lead.title} ${lead.snippet}`, 160),
+    source_author: lead.source_author,
+    created_at: lead.created_at,
+  };
+}
+
+async function loadLearningLogSourceUrlSet(debugEnabled: boolean) {
+  const sourceUrls = new Set<string>();
+  if (!debugEnabled) {
+    return sourceUrls;
+  }
+
+  try {
+    const raw = await readFile(defaultPreleadLearningLogPath(), "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const row = JSON.parse(line) as { source_url?: string };
+        if (row.source_url) {
+          sourceUrls.add(row.source_url);
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // debug-only best effort
+  }
+
+  return sourceUrls;
+}
+
+async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: boolean) {
   if (leads.length === 0) {
     return 0;
   }
@@ -2580,6 +2635,17 @@ async function saveToSupabase(leads: Prelead[], logger: Logger) {
     const envStatus = getSupabaseAdminEnvStatus();
     logger.debug(`Supabase URL present: ${envStatus.urlPresent ? "yes" : "no"}`);
     logger.debug(`Service role key present: ${envStatus.serviceRoleKeyPresent ? "yes" : "no"}`);
+    const learningLogSourceUrls = await loadLearningLogSourceUrlSet(debugEnabled);
+    if (debugEnabled) {
+      logger.debug(
+        "insert candidates before Supabase check:",
+        leads.map((lead) => ({
+          ...describeInsertCandidate(lead),
+          source_platform: lead.source,
+          already_in_learning_log: learningLogSourceUrls.has(lead.source_url),
+        }))
+      );
+    }
 
     const supabase = createSupabaseAdminClient();
     const sourceUrls = leads.map((lead) => lead.source_url);
@@ -2593,9 +2659,82 @@ async function saveToSupabase(leads: Prelead[], logger: Logger) {
     }
 
     const existingUrls = new Set((existing ?? []).map((row) => row.source_url as string));
-    const freshLeads = leads.filter((lead) => !existingUrls.has(lead.source_url));
+
+    const allExistingPostIds = new Set<string>();
+    if (debugEnabled) {
+      const { data: allExisting, error: allExistingError } = await supabase.from("pre_leads").select("source_url");
+      if (!allExistingError) {
+        for (const row of allExisting ?? []) {
+          const postId = extractRedditPostId(String(row.source_url ?? ""));
+          if (postId) {
+            allExistingPostIds.add(postId);
+          }
+        }
+      } else {
+        logger.warn(`Supabase post-id scan skipped: ${formatSupabaseError(allExistingError)}`);
+      }
+    }
+
+    const existingPostIds = debugEnabled ? allExistingPostIds : new Set<string>();
+
+    const freshLeads = leads.filter((lead) => {
+      const postId = extractRedditPostId(lead.source_url);
+      return !existingUrls.has(lead.source_url) && !(postId && existingPostIds.has(postId));
+    });
+
+    if (debugEnabled) {
+      const duplicateCandidates = leads.filter((lead) => !freshLeads.includes(lead));
+      logger.debug(
+        "duplicate check result:",
+        leads.map((lead) => {
+          const postId = extractRedditPostId(lead.source_url);
+          const urlMatch = existingUrls.has(lead.source_url);
+          const postIdMatch = Boolean(postId && existingPostIds.has(postId));
+          return {
+            source_url: lead.source_url,
+            source_post_id: postId,
+            duplicate_key: createInsertKey(lead),
+            duplicate_check_passed: !(urlMatch || postIdMatch),
+            duplicate_match_field: urlMatch ? "source_url" : postIdMatch ? "reddit_post_id" : null,
+            duplicate_match_value: urlMatch ? lead.source_url : postIdMatch ? postId : null,
+          };
+        })
+      );
+
+      for (const lead of duplicateCandidates) {
+        const postId = extractRedditPostId(lead.source_url);
+        const duplicateMatchField = existingUrls.has(lead.source_url)
+          ? "source_url"
+          : postId && existingPostIds.has(postId)
+            ? "reddit_post_id"
+            : "unknown";
+        logger.debug("insert skipped: duplicate", {
+          source_url: lead.source_url,
+          source_post_id: postId,
+          duplicate_key: createInsertKey(lead),
+          duplicate_match_field: duplicateMatchField,
+          duplicate_match_value: duplicateMatchField === "source_url" ? lead.source_url : postId,
+          title_preview: safePreview(lead.title, 90),
+        });
+      }
+    }
 
     if (freshLeads.length === 0) {
+      return 0;
+    }
+
+    const missingRequiredFields = freshLeads.filter(
+      (lead) => !lead.created_at || !lead.source || !lead.source_url || !lead.title || !lead.snippet
+    );
+    if (missingRequiredFields.length > 0) {
+      logger.warn(
+        "insert skipped: missing required fields",
+        missingRequiredFields.map((lead) => ({
+          source_url: lead.source_url,
+          duplicate_key: createInsertKey(lead),
+          missing: [!lead.created_at ? "created_at" : null, !lead.source ? "source" : null, !lead.source_url ? "source_url" : null, !lead.title ? "title" : null, !lead.snippet ? "snippet" : null].filter(Boolean),
+        }))
+      );
       return 0;
     }
 
@@ -2643,6 +2782,13 @@ async function saveToSupabase(leads: Prelead[], logger: Logger) {
     }
 
     if (error) {
+      const safeError = {
+        message: (error as { message?: unknown }).message ?? null,
+        code: (error as { code?: unknown }).code ?? null,
+        details: (error as { details?: unknown }).details ?? null,
+        hint: (error as { hint?: unknown }).hint ?? null,
+      };
+      logger.warn("insert failed: supabase error", safeError);
       throw error;
     }
 
@@ -3179,9 +3325,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   }
 
   let candidateLeads = leads;
+  let duplicateCandidatesSkippedAfterAi = 0;
   if (persistSupabase && candidateLeads.length > 0) {
     const { freshLeads, duplicateUrls } = await partitionFreshLeads(candidateLeads, logger);
     if (duplicateUrls.size > 0) {
+      duplicateCandidatesSkippedAfterAi = duplicateUrls.size;
       finalRejectedAfterAiCount += duplicateUrls.size;
       for (const duplicateUrl of duplicateUrls) {
         incrementReasonCount(finalRejectedReasonCounts, "duplicate");
@@ -3205,9 +3353,12 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
   let savedToSupabase = 0;
   if (persistSupabase) {
-    savedToSupabase = await saveToSupabase(candidateLeads, logger);
+    savedToSupabase = await saveToSupabase(candidateLeads, logger, debugEnabled);
   }
   logger.info(`inserted: ${savedToSupabase}`);
+  logger.info(
+    `insert summary: qualifying_before_dedupe=${leads.length} duplicates_skipped=${duplicateCandidatesSkippedAfterAi} insert_attempted=${candidateLeads.length} insert_succeeded=${savedToSupabase} insert_failed=${Math.max(0, candidateLeads.length - savedToSupabase)}`
+  );
   if (debugEnabled) {
     logger.info(`stage counts (final): fetched=${totalFetchedCandidates} deduped=${rawCandidates.length} hard_rejected_before_ai=${[...preAiRejectedReasonCounts.values()].reduce((sum, count) => sum + count, 0)} sent_to_ai=${aiCandidatesSent} ai_accepted=${aiAcceptedCount} ai_rejected=${aiRejectedCount} final_rejected_after_ai=${finalRejectedAfterAiCount} inserted=${savedToSupabase}`);
   }

@@ -25,9 +25,9 @@ export type EstimateQuoteResult = {
 
 type Complexity = "simple" | "medium" | "complex";
 
-const SIMPLE_HINTS = ["clip", "cap", "cover", "spacer", "small plastic part", "trim clip", "lid"];
-const MEDIUM_HINTS = ["bracket", "mount", "housing", "adapter", "enclosure", "panel", "handle"];
-const COMPLEX_HINTS = ["precision", "tolerance", "thread", "gear", "engine", "mating surface", "curved trim", "bearing", "machined"];
+const SIMPLE_HINTS = ["clip", "bracket", "small clip", "trim clip", "button", "retainer"];
+const MEDIUM_HINTS = ["trim", "dashboard trim", "door panel", "panel", "cover", "casing", "bezel", "interior part"];
+const COMPLEX_HINTS = ["housing", "shell", "enclosure", "bumper", "grille", "mirror casing", "precision", "tolerance", "thread", "mating surface", "curved trim", "machined"];
 
 const DISCLAIMER =
   "This is a rough estimate only. Final pricing depends on material, dimensions, tolerances, quantity, and supplier review.";

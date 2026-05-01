@@ -462,9 +462,6 @@ export async function POST(req: Request) {
       description_present: descriptionReady,
       part_candidate: partCandidate,
       intake_validation_reason: intakeValidationReason,
-      estimate,
-      confirmation_yes_url: yesUrl,
-      confirmation_no_url: noUrl,
     });
   } catch (error) {
     console.error("QUOTE API ERROR:", error);

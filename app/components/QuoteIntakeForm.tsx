@@ -1,9 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
-import { calculateQuote, type Material, type Complexity } from "@/lib/pricing";
-import type { EstimateQuoteResult } from "@/lib/estimate-quote";
+import { useRef, useState } from "react";
 import {
   determineStage,
   inferManufacturingType,
@@ -15,33 +13,8 @@ import {
 type SubmitResponse = {
   success: boolean;
   quote_id?: string;
-  estimate?: EstimateQuoteResult;
-  confirmation_yes_url?: string | null;
-  confirmation_no_url?: string | null;
   error?: string;
 };
-
-function mapMaterialPreferenceToPricingMaterial(material: IntakeMaterialPreference): Material {
-  switch (material) {
-    case "steel":
-      return "mild_steel";
-    case "stainless_steel":
-      return "stainless_steel";
-    case "brass":
-      return "brass";
-    case "pla_standard_plastic":
-    case "resin":
-    case "abs_asa":
-    case "nylon":
-    case "petg":
-      return "acetal_pom";
-    case "other":
-    case "not_sure":
-    case "aluminium":
-    default:
-      return "aluminium_6082";
-  }
-}
 
 function UploadArea({
   valueLabel,
@@ -118,7 +91,7 @@ export default function QuoteIntakeForm() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitResult, setSubmitResult] = useState<SubmitResponse | null>(null);
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
   const [quoteRef] = useState(
     () => `CNC-${String(Math.floor(Math.random() * 100000)).padStart(5, "0")}`
   );
@@ -136,19 +109,6 @@ export default function QuoteIntakeForm() {
     measurements: effectiveMeasurement,
     description,
   });
-
-  const pricingMaterial = mapMaterialPreferenceToPricingMaterial(material);
-  const complexity: Complexity = hasPhotos && !hasFile ? "complex" : hasFile ? "medium" : "simple";
-  const quote = useMemo(
-    () =>
-      calculateQuote({
-        material: pricingMaterial,
-        complexity,
-        volumeCm3: 100,
-        quantity: 1,
-      }),
-    [pricingMaterial, complexity]
-  );
 
   const uploadLabel = [
     photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : null,
@@ -170,7 +130,6 @@ export default function QuoteIntakeForm() {
   async function handleSubmit() {
     setSubmitError(null);
     setSubmitted(false);
-    setSubmitResult(null);
 
     if (!intakeValidation.isValid) {
       setSubmitError(
@@ -192,12 +151,7 @@ export default function QuoteIntakeForm() {
       formData.append("companyName", companyName);
       formData.append("phone", phone);
       formData.append("material", material);
-      formData.append("complexity", complexity);
-      formData.append("volumeCm3", "100");
       formData.append("quantity", "1");
-      formData.append("quoteLow", String(quote.low));
-      formData.append("quoteHigh", String(quote.high));
-      formData.append("quoteTotal", String(quote.totalIncVat));
       formData.append("has_file", String(hasFile));
       formData.append("has_photos", String(hasPhotos));
       formData.append("stage", stage);
@@ -230,7 +184,6 @@ export default function QuoteIntakeForm() {
         throw new Error(payload?.error || "Unable to submit request.");
       }
 
-      setSubmitResult(payload);
       setSubmitted(true);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to submit request.");
@@ -312,7 +265,7 @@ export default function QuoteIntakeForm() {
                   </label>
                 </div>
 
-                <details className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <details ref={detailsRef} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">Add more details</summary>
                   <div className="mt-4 grid gap-4">
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -401,43 +354,37 @@ export default function QuoteIntakeForm() {
                 </div>
               </div>
 
-              {submitted && submitResult?.estimate ? (
-                <div className="mt-6 rounded-xl border border-slate-200 bg-slate-950 p-5 text-white">
-                  <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Thanks — we’ll take a look and get back to you.</p>
-                  <p className="mt-2 text-2xl font-bold">{quoteRef}</p>
-                  <div className="mt-4 rounded-xl bg-white/5 p-4">
-                    <p className="text-sm text-slate-300">Rough estimate</p>
-                    <p className="mt-1 text-3xl font-bold text-cyan-300">£{submitResult.estimate.min_price}–£{submitResult.estimate.max_price}</p>
-                    <p className="mt-2 text-sm text-slate-300">Confidence: <span className="font-semibold capitalize text-white">{submitResult.estimate.confidence}</span></p>
-                    <p className="mt-3 text-sm leading-6 text-slate-400">{submitResult.estimate.disclaimer}</p>
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-300">
-                    This is not a final quote. If this range looks reasonable, confirm and we’ll look for an accurate supplier quote.
-                  </p>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    {submitResult.confirmation_yes_url ? (
-                      <a
-                        href={submitResult.confirmation_yes_url}
-                        className="inline-flex items-center justify-center rounded-xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                      >
-                        Yes, proceed to exact quote
-                      </a>
-                    ) : null}
-                    {submitResult.confirmation_no_url ? (
-                      <a
-                        href={submitResult.confirmation_no_url}
-                        className="inline-flex items-center justify-center rounded-xl border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/5"
-                      >
-                        This is higher than expected
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              ) : submitted ? (
+              {submitted ? (
                 <div className="mt-6 rounded-xl border border-slate-200 bg-slate-950 p-5 text-white">
                   <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Request received</p>
-                  <p className="mt-2 text-2xl font-bold">{quoteRef}</p>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">Thanks — we’ll take a look and get back to you.</p>
+                  <p className="mt-2 text-2xl font-bold">Thanks — we’ve got your request.</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">We’ll take a quick look and come back with:</p>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    <li>• whether it can be recreated</li>
+                    <li>• what’s needed (photos, dimensions, etc.)</li>
+                    <li>• a realistic price range</li>
+                  </ul>
+                  <p className="mt-4 text-sm leading-6 text-slate-300">Most projects fall between £100–£400 depending on complexity.</p>
+                  <p className="mt-3 text-sm text-slate-400">Reference: {quoteRef}</p>
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        detailsRef.current?.setAttribute("open", "");
+                        detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      className="inline-flex items-center justify-center rounded-xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                    >
+                      Add more details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                      className="inline-flex items-center justify-center rounded-xl border border-white/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/5"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>

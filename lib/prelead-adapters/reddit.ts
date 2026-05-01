@@ -5,17 +5,18 @@ const ROOT = process.cwd();
 const SOURCES_FILE = `${ROOT}/data/prelead-sources.json`;
 const BUILTIN_SUBREDDITS = ["CNC", "Machinists", "projectcar", "kitcar", "Cartalk", "motorcycles", "3Dprinting", "AskEngineers"];
 const BUILTIN_QUERIES = [
-  "custom part",
-  "quote",
-  "machinist",
-  "aluminium bracket",
-  "small batch",
-  "CNC",
-  "machine shop",
-  "billet",
-  "replacement part",
-  "STEP file",
-  "DXF",
+  'BMW E46 "can\'t find part"',
+  'BMW E90 discontinued part',
+  'Audi A3 "broken clip"',
+  'Audi A4 "missing trim"',
+  'VW Golf GTI "need replacement"',
+  'Mazda MX5 "anyone know where to get"',
+  'Nissan 350Z "can\'t find part"',
+  'Nissan 370Z discontinued part',
+  'Subaru WRX STI "broken clip"',
+  'replacement car part',
+  'missing trim',
+  'discontinued part',
 ];
 const REDDIT_TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token";
 const REDDIT_API_BASE = "https://oauth.reddit.com";
@@ -95,8 +96,8 @@ function buildRedditSearchUrl(subreddit: string, query: string) {
 function buildBuiltinRedditSources(limit: number): SourceEntry[] {
   const sources: SourceEntry[] = [];
 
-  for (const subreddit of BUILTIN_SUBREDDITS) {
-    for (const query of BUILTIN_QUERIES) {
+  for (const query of BUILTIN_QUERIES) {
+    for (const subreddit of BUILTIN_SUBREDDITS) {
       sources.push({ source: `reddit:r/${subreddit} ${query}`, kind: "reddit-search", subreddit, query, url: buildRedditSearchUrl(subreddit, query) });
     }
   }
@@ -281,6 +282,7 @@ function collectRedditCandidates(payload: unknown): RawPreleadCandidate[] {
 
     items.push({
       source: "reddit",
+      source_platform: "reddit" as const,
       source_url: fullUrl,
       title,
       snippet: [title, body].filter(Boolean).join(" ").trim(),
@@ -388,7 +390,7 @@ async function fetchSourceItems(source: SourceEntry, timeoutMs: number, logger?:
     }
 
     const snippet = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    return [{ source: source.source, source_url: source.url, title: source.source, snippet, published_at: null }];
+    return [{ source: "reddit", source_platform: "reddit" as const, source_url: source.url, title: source.source, snippet, published_at: null }];
   } finally {
     clearTimeout(timeout);
   }

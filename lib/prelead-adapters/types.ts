@@ -1,5 +1,6 @@
 export type RawPreleadCandidate = {
   source: string;
+  source_platform?: "reddit" | "forum" | "google-indexed";
   source_url: string;
   title: string;
   snippet: string;
