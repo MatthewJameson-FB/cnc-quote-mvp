@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAdminUser } from "@/lib/admin-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { normalizeQuoteVisibilityStatus, quoteVisibilityLabel } from "@/lib/quote-visibility";
+import { buildSearchContext } from "@/lib/research-context";
 import QuoteWorkbenchEditor from "./QuoteWorkbenchEditor";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +96,40 @@ async function loadQuote(id: string): Promise<QuoteRecordWithAssets | null> {
     description: quote.description,
   });
 
-  return { ...quote, fileUrl, photoUrls };
+  const notesDescription = extractNoteValue(quote.notes, "description");
+  const notesVehicleMake = extractNoteValue(quote.notes, "vehicle_make");
+  const notesVehicleModel = extractNoteValue(quote.notes, "vehicle_model");
+  const notesVehicleYear = extractNoteValue(quote.notes, "vehicle_year");
+  const notesModelSpecifics = extractNoteValue(quote.notes, "model_specifics");
+  const notesIssueType = extractNoteValue(quote.notes, "issue_type");
+  const notesSizeEstimate = extractNoteValue(quote.notes, "size_estimate");
+
+  const normalizedQuote = {
+    ...quote,
+    description: quote.description || notesDescription,
+    vehicle_make: quote.vehicle_make || notesVehicleMake,
+    vehicle_model: quote.vehicle_model || notesVehicleModel,
+    vehicle_year: quote.vehicle_year || notesVehicleYear,
+    model_specifics: quote.model_specifics || notesModelSpecifics,
+    issue_type: quote.issue_type || notesIssueType,
+    size_estimate: quote.size_estimate || notesSizeEstimate,
+  };
+
+  return {
+    ...normalizedQuote,
+    search_context:
+      normalizedQuote.search_context ||
+      buildSearchContext({
+        vehicle_make: normalizedQuote.vehicle_make,
+        vehicle_model: normalizedQuote.vehicle_model,
+        vehicle_year: normalizedQuote.vehicle_year,
+        model_specifics: normalizedQuote.model_specifics,
+        description: normalizedQuote.description,
+        issue_type: normalizedQuote.issue_type,
+      }),
+    fileUrl,
+    photoUrls,
+  };
 }
 
 export default async function QuoteWorkbenchPage({ params }: { params: Promise<{ id: string }> }) {

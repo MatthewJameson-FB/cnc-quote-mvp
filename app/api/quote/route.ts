@@ -151,6 +151,12 @@ function buildIntakeNotes({
   routingDecision,
   measurements,
   description,
+  vehicleMake,
+  vehicleModel,
+  vehicleYear,
+  modelSpecifics,
+  issueType,
+  sizeEstimate,
   filePath,
   photoPaths,
   intakeValidationReason,
@@ -166,6 +172,12 @@ function buildIntakeNotes({
   routingDecision: string;
   measurements: string;
   description: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleYear: string;
+  modelSpecifics: string;
+  issueType: string;
+  sizeEstimate: string;
   filePath: string | null;
   photoPaths: string[];
   intakeValidationReason: string | null;
@@ -187,6 +199,12 @@ function buildIntakeNotes({
     intakeValidationReason ? `intake_validation_reason: ${intakeValidationReason}` : null,
     measurements ? `measurements: ${measurements}` : null,
     description ? `description: ${description}` : null,
+    vehicleMake ? `vehicle_make: ${vehicleMake}` : null,
+    vehicleModel ? `vehicle_model: ${vehicleModel}` : null,
+    vehicleYear ? `vehicle_year: ${vehicleYear}` : null,
+    modelSpecifics ? `model_specifics: ${modelSpecifics}` : null,
+    issueType ? `issue_type: ${issueType}` : null,
+    sizeEstimate ? `size_estimate: ${sizeEstimate}` : null,
     filePath ? `file_url: ${filePath}` : null,
     photoPaths.length ? `photo_urls: ${photoPaths.join(", ")}` : null,
     photoAssessment ? `photo_readiness: ${photoAssessment.photo_readiness}` : null,
@@ -367,6 +385,7 @@ export async function POST(req: Request) {
       email: cleanString(formData.get("email")),
       companyName: cleanString(formData.get("companyName")),
       phone: cleanString(formData.get("phone")),
+      description,
       notes: buildIntakeNotes({
         existingNotes: notes,
         preleadId,
@@ -376,6 +395,12 @@ export async function POST(req: Request) {
         routingDecision,
         measurements,
         description,
+        vehicleMake,
+        vehicleModel,
+        vehicleYear,
+        modelSpecifics,
+        issueType,
+        sizeEstimate,
         filePath,
         photoPaths,
         intakeValidationReason,
@@ -390,6 +415,13 @@ export async function POST(req: Request) {
       quote_low: Number(formData.get("quoteLow")) || 0,
       quote_high: Number(formData.get("quoteHigh")) || 0,
       quote_total: Number(formData.get("quoteTotal")) || 0,
+      vehicle_make: vehicleMake || null,
+      vehicle_model: vehicleModel || null,
+      vehicle_year: vehicleYear || null,
+      model_specifics: modelSpecifics || null,
+      issue_type: issueType || null,
+      size_estimate: sizeEstimate || null,
+      search_context: searchContext || null,
       file_path: primaryAssetPath,
       status: defaultQuoteStatus,
     };
@@ -408,6 +440,14 @@ export async function POST(req: Request) {
 
     if (error && isMissingColumnError(error)) {
       const strippedQuote = { ...quote } as Record<string, unknown>;
+      delete strippedQuote.description;
+      delete strippedQuote.vehicle_make;
+      delete strippedQuote.vehicle_model;
+      delete strippedQuote.vehicle_year;
+      delete strippedQuote.model_specifics;
+      delete strippedQuote.issue_type;
+      delete strippedQuote.size_estimate;
+      delete strippedQuote.search_context;
       ({ data: insertedQuote, error } = await insertQuote(strippedQuote as typeof quote));
     }
 
