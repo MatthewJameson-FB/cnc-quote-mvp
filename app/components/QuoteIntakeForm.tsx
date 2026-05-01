@@ -18,6 +18,27 @@ function uploadLabel(files: File[]) {
   return `${files.length} uploads selected`;
 }
 
+function BlueprintMotif() {
+  return (
+    <svg viewBox="0 0 900 520" className="h-full w-full" aria-hidden="true">
+      <g fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1.2">
+        <path d="M70 90h240M140 130h190M64 170h150M120 210h230M70 250h170M610 100h160M660 150h140M620 210h180M590 280h210" />
+        <path d="M120 360c60-65 175-110 300-110 90 0 165 18 242 56" />
+        <path d="M140 380c48-36 108-62 186-78" />
+        <path d="M580 320c24-20 52-35 87-45" />
+        <circle cx="200" cy="120" r="14" />
+        <circle cx="710" cy="120" r="14" />
+        <circle cx="540" cy="290" r="20" />
+      </g>
+      <g fill="rgba(255,255,255,0.05)">
+        <rect x="115" y="302" width="120" height="16" rx="8" />
+        <rect x="270" y="250" width="170" height="16" rx="8" />
+        <rect x="510" y="190" width="160" height="16" rx="8" />
+      </g>
+    </svg>
+  );
+}
+
 function ClassicCarSilhouette() {
   return (
     <svg viewBox="0 0 900 360" className="h-full w-full" aria-hidden="true">
@@ -46,11 +67,94 @@ function ClassicCarSilhouette() {
   );
 }
 
+function FlangieMascot() {
+  return (
+    <svg viewBox="0 0 220 220" className="h-full w-full" aria-hidden="true">
+      <defs>
+        <linearGradient id="flangeFace" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="#efe6d4" />
+          <stop offset="100%" stopColor="#c8c0ae" />
+        </linearGradient>
+      </defs>
+      <g transform="translate(16 16)">
+        <circle cx="94" cy="94" r="70" fill="#22354f" stroke="#5f748f" strokeWidth="5" />
+        <circle cx="94" cy="94" r="48" fill="url(#flangeFace)" stroke="#6a6359" strokeWidth="4" />
+        {[0, 1, 2, 3, 4, 5].map((i) => {
+          const angle = (Math.PI * 2 * i) / 6 - Math.PI / 6;
+          const x = 94 + Math.cos(angle) * 61;
+          const y = 94 + Math.sin(angle) * 61;
+          return <circle key={i} cx={x} cy={y} r="6.5" fill="#121926" stroke="#7e8ca2" strokeWidth="2" />;
+        })}
+        <circle cx="78" cy="86" r="4.5" fill="#101826" />
+        <circle cx="110" cy="86" r="4.5" fill="#101826" />
+        <path d="M76 106c8 8 34 8 42 0" stroke="#101826" strokeWidth="4" strokeLinecap="round" fill="none" />
+        <path d="M18 128c12 0 28 9 36 22" stroke="#6f879f" strokeWidth="6" strokeLinecap="round" fill="none" />
+        <path d="M170 128c-12 0-28 9-36 22" stroke="#6f879f" strokeWidth="6" strokeLinecap="round" fill="none" />
+        <path d="M36 148l-15 22" stroke="#6f879f" strokeWidth="6" strokeLinecap="round" />
+        <path d="M152 148l15 22" stroke="#6f879f" strokeWidth="6" strokeLinecap="round" />
+        <path d="M28 174c15 8 30 10 46 10" stroke="#f05a3a" strokeWidth="4" strokeLinecap="round" />
+        <path d="M146 174c15 8 30 10 46 10" stroke="#355894" strokeWidth="4" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+
+function TrimClipIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 7h7c3 0 7 2 7 5s-4 5-7 5H5z" />
+      <path d="M7 7v10" />
+      <path d="M9 10h3" />
+    </svg>
+  );
+}
+
+function BracketIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 5h8v4H10v6h4v4H6z" />
+      <path d="M16 7h2" />
+      <path d="M16 17h2" />
+    </svg>
+  );
+}
+
+function ObsoletePartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16v10H4z" />
+      <path d="M8 10h8" />
+      <path d="M9 14h6" />
+      <path d="M5 5l14 14" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 16V5" />
+      <path d="M8 9l4-4 4 4" />
+      <path d="M4 15v2a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-2" />
+      <path d="M7 15h10" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 8h4l2-2h4l2 2h4v10H4z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </svg>
+  );
+}
+
 function MascotBubble() {
   return (
-    <div className="flex items-end gap-3 rounded-[22px] border border-white/10 bg-white/10 p-3 backdrop-blur-sm">
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/15 bg-slate-100/90 text-2xl shadow-lg">
-        ⚙️
+    <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/10 p-3 backdrop-blur-sm">
+      <div className="relative h-18 w-18 shrink-0">
+        <FlangieMascot />
       </div>
       <p className="max-w-[14rem] text-sm leading-6 text-slate-100">
         Hi, I’m Flangie. I help find parts that others can’t.
@@ -154,8 +258,11 @@ export default function QuoteIntakeForm() {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,620px)] lg:items-start">
           <section className="relative min-w-0 overflow-hidden rounded-[32px] border border-white/10 bg-[#07111d]/85 p-7 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-sm sm:p-9 lg:min-h-[860px] lg:p-10">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(58,107,185,0.16),_transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_38%)]" />
+            <div className="absolute inset-0 opacity-35">
+              <BlueprintMotif />
+            </div>
             <div className="relative z-10 flex h-full flex-col">
-              <div className="space-y-6">
+              <div className="space-y-6 lg:max-w-[90%]">
                 <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-200">
                   Built to fit
                   <span className="h-px w-16 bg-gradient-to-r from-[#3b6ec2] via-[#3b6ec2] to-[#f05a3a]" />
@@ -173,12 +280,14 @@ export default function QuoteIntakeForm() {
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   {[
-                    ["Trim & clips", "Interior and exterior"],
-                    ["Brackets", "Mounts and fittings"],
-                    ["Discontinued parts", "No longer available"],
-                  ].map(([title, body]) => (
+                    { title: "Trim & clips", body: "Interior and exterior", Icon: TrimClipIcon },
+                    { title: "Brackets", body: "Mounts and fittings", Icon: BracketIcon },
+                    { title: "Discontinued parts", body: "No longer available", Icon: ObsoletePartIcon },
+                  ].map(({ title, body, Icon }) => (
                     <div key={title} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                      <div className="mb-3 h-8 w-8 rounded-full border border-white/15 bg-white/10" />
+                      <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-[#0d1724] text-slate-100 shadow-sm">
+                        <Icon />
+                      </div>
                       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white">{title}</p>
                       <p className="mt-1 text-sm text-slate-300">{body}</p>
                     </div>
@@ -192,7 +301,7 @@ export default function QuoteIntakeForm() {
 
               <div className="relative mt-auto pt-8">
                 <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#050b14] to-transparent" />
-                <div className="relative mx-auto max-w-[720px] translate-y-6 opacity-95">
+                <div className="relative mx-auto max-w-[780px] translate-y-6 opacity-95">
                   <ClassicCarSilhouette />
                 </div>
               </div>
@@ -211,14 +320,28 @@ export default function QuoteIntakeForm() {
 
                 <label className="grid gap-2">
                   <span className="text-sm font-semibold text-slate-800">Upload photos or file</span>
-                  <input
-                    type="file"
-                    multiple
-                    accept=".png,.jpg,.jpeg,.webp,.gif,.step,.stp,.dxf,.dwg,.pdf,.stl,.obj,.3mf"
-                    onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
-                    className="block w-full rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-[#355894] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#2d4b7f]"
-                  />
-                  <p className="text-sm text-slate-500">{uploadSummary}</p>
+                  <div className="rounded-[28px] border-2 border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50 px-4 py-5 shadow-inner shadow-slate-100/80 sm:px-5 sm:py-6">
+                    <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#355894]/20 bg-[#355894]/10 text-[#355894]">
+                        <UploadIcon />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-sm font-semibold text-slate-900">Choose photos or a file</p>
+                        <p className="text-sm leading-6 text-slate-500">Drag and drop isn’t required — tap to browse. Photos are enough to start.</p>
+                      </div>
+                    </div>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.step,.stp,.dxf,.dwg,.pdf,.stl,.obj,.3mf"
+                      onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
+                      className="mt-4 block w-full rounded-2xl border border-slate-300 bg-white px-4 py-4 text-sm text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-[#355894] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#2d4b7f]"
+                    />
+                    <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
+                      <CameraIcon />
+                      {uploadSummary}
+                    </p>
+                  </div>
                 </label>
 
                 <label className="grid gap-2">
