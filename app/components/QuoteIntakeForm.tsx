@@ -152,11 +152,11 @@ function CameraIcon() {
 
 function MascotBubble() {
   return (
-    <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/10 p-3 backdrop-blur-sm">
-      <div className="relative h-18 w-18 shrink-0">
+    <div className="flex items-center gap-4 rounded-[24px] border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+      <div className="relative h-24 w-24 shrink-0">
         <FlangieMascot />
       </div>
-      <p className="max-w-[14rem] text-sm leading-6 text-slate-100">
+      <p className="max-w-[16rem] text-sm leading-6 text-slate-100 sm:text-[0.95rem]">
         Hi, I’m Flangie. I help find parts that others can’t.
       </p>
     </div>
@@ -272,54 +272,54 @@ export default function QuoteIntakeForm() {
 
   return (
     <PublicSiteShell>
-      <div className="mx-auto max-w-7xl px-4 pb-10 pt-2 sm:px-6 lg:px-8 lg:pb-14">
+      <div className="mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-14 lg:pt-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,620px)] lg:items-start">
-          <section className="relative min-w-0 overflow-hidden rounded-[32px] border border-white/10 bg-[#07111d]/85 p-7 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-sm sm:p-9 lg:min-h-[860px] lg:p-10">
+          <section className="relative min-w-0 overflow-hidden rounded-[32px] border border-white/10 bg-[#07111d]/85 p-7 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-sm sm:p-9 lg:p-10 lg:pt-12">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(58,107,185,0.16),_transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_38%)]" />
             <div className="absolute inset-0 opacity-35">
               <BlueprintMotif />
             </div>
             <div className="relative z-10 flex h-full flex-col">
-              <div className="space-y-6 lg:max-w-[90%]">
+              <div className="space-y-7 lg:max-w-[90%]">
                 <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-200">
                   Built to fit
                   <span className="h-px w-16 bg-gradient-to-r from-[#3b6ec2] via-[#3b6ec2] to-[#f05a3a]" />
                   Recreated to match
                 </div>
 
-                <div className="max-w-2xl space-y-5">
-                  <h1 className="text-4xl font-black leading-[0.92] tracking-tight text-white sm:text-5xl lg:text-7xl">
+                <div className="max-w-2xl space-y-4">
+                  <h1 className="max-w-[12ch] text-4xl font-black leading-[1.02] tracking-tight text-white sm:text-5xl lg:text-7xl">
                     Can’t find a replacement car part?
                   </h1>
-                  <p className="max-w-xl text-lg leading-8 text-slate-300 sm:text-xl">
+                  <p className="max-w-xl text-lg leading-8 text-slate-300 sm:text-xl lg:mt-1">
                     Upload a few photos and tell us what broke. We’ll see if it can be recreated.
                   </p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-3 lg:gap-4">
                   {[
                     { title: "Trim & clips", body: "Interior and exterior", Icon: TrimClipIcon },
                     { title: "Brackets", body: "Mounts and fittings", Icon: BracketIcon },
                     { title: "Discontinued parts", body: "No longer available", Icon: ObsoletePartIcon },
                   ].map(({ title, body, Icon }) => (
-                    <div key={title} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-                      <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-[#0d1724] text-slate-100 shadow-sm">
+                    <div key={title} className="rounded-2xl border border-white/10 bg-white/8 p-3.5 backdrop-blur-sm shadow-sm">
+                      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-[#0d1724] text-slate-100 shadow-sm">
                         <Icon />
                       </div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white">{title}</p>
-                      <p className="mt-1 text-sm text-slate-300">{body}</p>
+                      <p className="text-[0.78rem] font-semibold uppercase tracking-[0.16em] text-white">{title}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-300">{body}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="max-w-sm pt-2">
+                <div className="max-w-md pt-1 sm:pt-2">
                   <MascotBubble />
                 </div>
               </div>
 
-              <div className="relative mt-auto pt-8">
-                <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#050b14] to-transparent" />
-                <div className="relative mx-auto max-w-[780px] translate-y-6 opacity-95">
+              <div className="relative mt-8 pt-2 sm:mt-10">
+                <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-[#050b14] to-transparent" />
+                <div className="relative mx-auto max-w-[780px] opacity-95 sm:translate-y-2 lg:translate-y-3">
                   <ClassicCarSilhouette />
                 </div>
               </div>
@@ -328,24 +328,24 @@ export default function QuoteIntakeForm() {
 
           <section className="min-w-0">
             <form onSubmit={handleSubmit} className="w-full rounded-[32px] border border-slate-200 bg-[#f8f4ee] p-5 text-slate-900 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:p-7 lg:p-8">
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div className="space-y-2">
                   <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#355894]">Start here</p>
                   <div className="h-px w-20 bg-gradient-to-r from-[#355894] via-[#355894] to-[#f05a3a]" />
-                  <h2 className="pt-3 text-3xl font-black tracking-tight text-slate-950">Upload photos or a file</h2>
-                  <p className="text-base leading-7 text-slate-600">Photos are enough to start. CAD files are optional.</p>
+                  <h2 className="pt-2 text-3xl font-black tracking-tight text-slate-950">Upload photos or a file</h2>
+                  <p className="text-base leading-7 text-slate-600">Photos are enough to start.</p>
                 </div>
 
                 <label className="grid gap-2">
                   <span className="text-sm font-semibold text-slate-800">Upload photos or file</span>
-                  <div className="rounded-[28px] border-2 border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50 px-4 py-5 shadow-inner shadow-slate-100/80 sm:px-5 sm:py-6">
-                    <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#355894]/20 bg-[#355894]/10 text-[#355894]">
+                  <div className="rounded-[28px] border-2 border-dashed border-slate-300 bg-white px-4 py-5 shadow-sm sm:px-5 sm:py-6">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#355894]/10 text-[#355894]">
                         <UploadIcon />
                       </div>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="text-sm font-semibold text-slate-900">Choose photos or a file</p>
-                        <p className="text-sm leading-6 text-slate-500">Drag and drop isn’t required — tap to browse. Photos are enough to start.</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">Choose photos or file</p>
+                        <p className="text-sm leading-6 text-slate-500">Photos are enough to start.</p>
                       </div>
                     </div>
                     <input
@@ -355,11 +355,11 @@ export default function QuoteIntakeForm() {
                       onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
                       className="mt-4 block w-full rounded-2xl border border-slate-300 bg-white px-4 py-4 text-sm text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-[#355894] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#2d4b7f]"
                     />
-                    <p className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-                      <CameraIcon />
-                      {uploadSummary}
-                    </p>
                   </div>
+                  <p className="flex items-center gap-2 text-sm text-slate-500">
+                    <CameraIcon />
+                    {uploadSummary}
+                  </p>
                 </label>
 
                 <label className="grid gap-2">
@@ -544,7 +544,7 @@ export default function QuoteIntakeForm() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex w-full items-center justify-center rounded-full bg-[#355894] px-6 py-4 text-base font-semibold text-white transition hover:bg-[#2d4b7f] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center rounded-full bg-[#355894] px-6 py-4 text-base font-semibold text-white shadow-[0_12px_30px_rgba(53,88,148,0.28)] transition hover:bg-[#2d4b7f] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? "Submitting..." : "Send photos"}
                 </button>
