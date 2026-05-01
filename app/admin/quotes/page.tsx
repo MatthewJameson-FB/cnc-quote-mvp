@@ -1,6 +1,7 @@
 import { requireAdminUser } from '@/lib/admin-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase-admin'
 import { normalizeQuoteVisibilityStatus, quoteVisibilityLabel, type QuoteVisibilityStatus } from '@/lib/quote-visibility'
+import ResearchTools from '@/app/components/ResearchTools'
 import QuoteVisibilityActions from '@/app/internal-admin/QuoteVisibilityActions'
 
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,13 @@ type QuoteRecord = {
   job_value: number | null
   material: string | null
   complexity: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_year: string | null
+  model_specifics: string | null
+  issue_type: string | null
+  size_estimate: string | null
+  search_context: string | null
 }
 
 function formatDate(value: string | null) {
@@ -97,6 +105,17 @@ function QuoteCard({ quote }: { quote: QuoteRecord }) {
         </div>
       </div>
 
+      <div className="mt-4">
+        <ResearchTools
+          searchContext={
+            quote.search_context ||
+            [quote.vehicle_make, quote.vehicle_model, quote.vehicle_year, quote.model_specifics, quoteDescription(quote), quote.issue_type, quote.size_estimate]
+              .filter(Boolean)
+              .join(' ')
+          }
+        />
+      </div>
+
       <div className="mt-4 flex flex-wrap gap-2">
         <QuoteVisibilityActions quoteId={quote.id} status={status} />
       </div>
@@ -128,7 +147,7 @@ export default async function AdminQuotesPage({
 
   const { data: quotes, error } = await supabase
     .from('quotes')
-    .select('id, quote_ref, name, email, created_at, notes, status, quote_low, quote_high, customer_estimate_min, customer_estimate_max, final_quote_amount, job_value, material, complexity')
+    .select('*')
     .order('created_at', { ascending: false })
 
   if (error) {

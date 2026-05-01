@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from '@/lib/supabase-admin'
 import { scoreLeadValue } from '@/lib/lead-value'
 import { sendInboundPartSubmissionEmail } from '@/lib/notifications'
+import { buildSearchContext } from '@/lib/research-context'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -32,6 +33,12 @@ async function readInput(request: NextRequest) {
       description: cleanString(body?.description),
       email: cleanString(body?.email),
       image_url: cleanString(body?.image_url),
+      vehicle_make: cleanString(body?.vehicle_make),
+      vehicle_model: cleanString(body?.vehicle_model),
+      vehicle_year: cleanString(body?.vehicle_year),
+      model_specifics: cleanString(body?.model_specifics),
+      issue_type: cleanString(body?.issue_type),
+      size_estimate: cleanString(body?.size_estimate),
       image: null as File | null,
     }
   }
@@ -42,13 +49,19 @@ async function readInput(request: NextRequest) {
     description: cleanString(formData.get('description')),
     email: cleanString(formData.get('email')),
     image_url: cleanString(formData.get('image_url')),
+    vehicle_make: cleanString(formData.get('vehicle_make')),
+    vehicle_model: cleanString(formData.get('vehicle_model')),
+    vehicle_year: cleanString(formData.get('vehicle_year')),
+    model_specifics: cleanString(formData.get('model_specifics')),
+    issue_type: cleanString(formData.get('issue_type')),
+    size_estimate: cleanString(formData.get('size_estimate')),
     image: image instanceof File && image.size > 0 ? image : null,
   }
 }
 
 export async function POST(request: NextRequest) {
   const submissionId = crypto.randomUUID()
-  const { description, email, image_url, image } = await readInput(request)
+  const { description, email, image_url, vehicle_make, vehicle_model, vehicle_year, model_specifics, issue_type, size_estimate, image } = await readInput(request)
 
   if (!description) {
     return NextResponse.json({ error: 'Description is required.' }, { status: 400 })
@@ -82,8 +95,17 @@ export async function POST(request: NextRequest) {
 
   const value = scoreLeadValue(description)
   const sourceUrl = `${request.nextUrl.origin}/submit-part?submission=${submissionId}`
+  const searchContext = buildSearchContext({
+    vehicle_make,
+    vehicle_model,
+    vehicle_year,
+    model_specifics,
+    description,
+    issue_type,
+    size_estimate,
+  })
 
-  const { error } = await supabase.from('pre_leads').insert({
+  const primaryInsert = {
     source: 'inbound',
     source_url: sourceUrl,
     source_author: email,
@@ -104,7 +126,16 @@ export async function POST(request: NextRequest) {
     contacted_at: null,
     dismissed_reason: null,
     dismissed_at: null,
-  })
+    vehicle_make: vehicle_make || null,
+    vehicle_model: vehicle_model || null,
+    vehicle_year: vehicle_year || null,
+    model_specifics: model_specifics || null,
+    issue_type: issue_type || null,
+    size_estimate: size_estimate || null,
+    search_context: searchContext || null,
+  }
+
+  const { error } = await supabase.from('pre_leads').insert(primaryInsert)
 
   if (error && isMissingColumnError(error)) {
     const fallbackNotes = [
@@ -132,6 +163,8 @@ export async function POST(request: NextRequest) {
       status: 'active',
       reviewed_at: null,
       contacted_at: null,
+      dismissed_reason: null,
+      dismissed_at: null,
     })
 
     if (fallback.error) {

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { createSupabaseAdminClient, getSupabaseAdminEnvStatus } from "@/lib/supabase-admin";
 import { sendPreleadSummaryEmail } from "@/lib/notifications";
+import { buildSearchContext } from "@/lib/research-context";
 import { formatThreadContextSummary, summarizeThreadContext, type ThreadContextSummary } from "@/lib/prelead-thread-context";
 import { buildEnabledPreleadAdapters } from "@/lib/prelead-adapters";
 import type { RawPreleadCandidate } from "@/lib/prelead-adapters/types";
@@ -44,6 +45,7 @@ export type Prelead = {
   suggested_reply: string;
   should_reply: boolean;
   created_at: string;
+  search_context?: string | null;
   thread_context_summary?: ThreadContextSummary | null;
   manual_notes?: string | null;
   has_file?: boolean;
@@ -1909,6 +1911,12 @@ function fromPlainText(
   return {
     ...prelead,
     suggested_reply: buildBaseSuggestedReply(prelead, summarizeProblemSignals(intent)),
+    search_context: buildSearchContext({
+      title,
+      post_text: text,
+      description: text,
+      issue_type: intent.intent_type === "buyer_problem" ? "replacement" : null,
+    }),
   };
 }
 
@@ -1975,6 +1983,12 @@ export function buildManualPrelead(input: ManualPreleadInput): Prelead {
     suggested_reply: shouldReply ? buildManualSuggestedReply({ ...prelead, should_reply: shouldReply }, problemSummary) : "",
     routing_decision: routingDecision,
     part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
+    search_context: buildSearchContext({
+      title,
+      post_text: combinedText,
+      description: combinedText,
+      issue_type: "replacement",
+    }),
   };
 }
 
@@ -2754,6 +2768,7 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
       value_reason: lead.value_reason,
       suggested_reply: lead.suggested_reply,
       should_reply: lead.should_reply,
+      search_context: lead.search_context ?? null,
       thread_context_summary: lead.thread_context_summary ?? null,
       manual_notes: lead.manual_notes ?? null,
       status: "new",
@@ -2765,7 +2780,7 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
     };
 
     let error = await insertRows(payload);
-    if (error && /(thread_context_summary|should_reply|manual_notes|value_tier|value_score|value_reason)/.test(String(error))) {
+    if (error && /(thread_context_summary|should_reply|manual_notes|search_context|value_tier|value_score|value_reason)/.test(String(error))) {
       logger.warn("Supabase insert retrying without derived reply/thread/value columns (schema cache lag?)");
       error = await insertRows(
         payload.map((row) => {
@@ -2773,6 +2788,7 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
           delete stripped.thread_context_summary;
           delete stripped.should_reply;
           delete stripped.manual_notes;
+          delete stripped.search_context;
           delete stripped.value_tier;
           delete stripped.value_score;
           delete stripped.value_reason;

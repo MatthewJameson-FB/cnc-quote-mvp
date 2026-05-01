@@ -4,6 +4,7 @@ import { defaultQuoteStatus } from "@/lib/quote-statuses";
 import { sendQuoteNotifications } from "@/lib/notifications";
 import { estimateQuote } from "@/lib/estimate-quote";
 import { assessPhotoRequest, type PhotoAssessmentResult } from "@/lib/photo-assessment";
+import { buildSearchContext } from "@/lib/research-context";
 import {
   appendPreleadLearningLog,
   createPreleadConversionLearningLogRow,
@@ -30,6 +31,10 @@ function cleanString(value: FormDataEntryValue | null) {
 
 function parseBoolean(value: FormDataEntryValue | null) {
   return /^(1|true|yes|on)$/i.test(cleanString(value));
+}
+
+function readOptionalField(formData: FormData, name: string) {
+  return cleanString(formData.get(name));
 }
 
 function normalizeMaterial(value: string): IntakeMaterialPreference {
@@ -198,6 +203,12 @@ export async function POST(req: Request) {
     const preleadId = cleanString(formData.get("prelead_id")) || null;
     const measurements = cleanString(formData.get("measurement") || formData.get("measurements"));
     const description = cleanString(formData.get("description"));
+    const vehicleMake = readOptionalField(formData, "vehicle_make");
+    const vehicleModel = readOptionalField(formData, "vehicle_model");
+    const vehicleYear = readOptionalField(formData, "vehicle_year");
+    const modelSpecifics = readOptionalField(formData, "model_specifics");
+    const issueType = readOptionalField(formData, "issue_type");
+    const sizeEstimate = readOptionalField(formData, "size_estimate");
     const quantity = Number(formData.get("quantity")) || 1;
     const hasFile = file instanceof File && file.size > 0 ? true : parseBoolean(formData.get("has_file"));
     const hasPhotos = photos.length > 0 ? true : parseBoolean(formData.get("has_photos"));
@@ -225,6 +236,15 @@ export async function POST(req: Request) {
       quantity,
       has_file: hasFile,
       has_photos: hasPhotos,
+    });
+    const searchContext = buildSearchContext({
+      vehicle_make: vehicleMake,
+      vehicle_model: vehicleModel,
+      vehicle_year: vehicleYear,
+      model_specifics: modelSpecifics,
+      description,
+      issue_type: issueType,
+      size_estimate: sizeEstimate,
     });
 
     if (isDebugEnabled()) {
@@ -345,15 +365,34 @@ export async function POST(req: Request) {
       quote_low: Number(formData.get("quoteLow")) || 0,
       quote_high: Number(formData.get("quoteHigh")) || 0,
       quote_total: Number(formData.get("quoteTotal")) || 0,
+      vehicle_make: vehicleMake || null,
+      vehicle_model: vehicleModel || null,
+      vehicle_year: vehicleYear || null,
+      model_specifics: modelSpecifics || null,
+      issue_type: issueType || null,
+      size_estimate: sizeEstimate || null,
+      search_context: searchContext || null,
       file_path: primaryAssetPath,
       status: defaultQuoteStatus,
     };
 
-    const { data: insertedQuote, error } = await supabase
-      .from("quotes")
-      .insert([quote])
-      .select("id")
-      .single();
+    const insertQuote = async (row: typeof quote) => {
+      return supabase.from("quotes").insert([row]).select("id").single();
+    };
+
+    let { data: insertedQuote, error } = await insertQuote(quote);
+
+    if (error && isMissingColumnError(error)) {
+      const strippedQuote = { ...quote } as Record<string, unknown>;
+      delete strippedQuote.vehicle_make;
+      delete strippedQuote.vehicle_model;
+      delete strippedQuote.vehicle_year;
+      delete strippedQuote.model_specifics;
+      delete strippedQuote.issue_type;
+      delete strippedQuote.size_estimate;
+      delete strippedQuote.search_context;
+      ({ data: insertedQuote, error } = await insertQuote(strippedQuote as typeof quote));
+    }
 
     if (error) {
       console.error("DB ERROR:", error);

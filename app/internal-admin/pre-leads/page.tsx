@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase-admin'
 import ConfirmActionButton from '../ConfirmActionButton'
 import CopyReplyButton from '../CopyReplyButton'
 import DismissLeadButton from './DismissLeadButton'
+import ResearchTools from '@/app/components/ResearchTools'
 import { deleteTestPreLead, setPreLeadActive, setPreLeadContacted } from './actions'
 import type { ReactNode } from 'react'
 
@@ -56,6 +57,7 @@ type PreLeadRecord = {
   suggested_reply: string
   manual_notes: string | null
   post_text: string | null
+  search_context: string | null
   image_url: string | null
   contact_email: string | null
   status: string | null
@@ -166,6 +168,10 @@ function LeadCard({
           {lead.should_reply && lead.suggested_reply ? <CopyReplyButton reply={lead.suggested_reply} /> : null}
         </div>
         <p className="mt-2 text-sm text-slate-700">{lead.should_reply ? lead.suggested_reply : 'No reply suggested'}</p>
+      </div>
+
+      <div className="mt-4">
+        <ResearchTools searchContext={lead.search_context ?? `${lead.title} ${lead.snippet}`} />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

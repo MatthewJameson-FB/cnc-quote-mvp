@@ -174,6 +174,12 @@ export default function QuoteIntakeForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [vehicleMake, setVehicleMake] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [vehicleYear, setVehicleYear] = useState("");
+  const [modelSpecifics, setModelSpecifics] = useState("");
+  const [issueType, setIssueType] = useState("");
+  const [sizeEstimate, setSizeEstimate] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -210,6 +216,12 @@ export default function QuoteIntakeForm() {
       formData.append("email", email);
       formData.append("companyName", companyName);
       formData.append("phone", phone);
+      formData.append("vehicle_make", vehicleMake);
+      formData.append("vehicle_model", vehicleModel);
+      formData.append("vehicle_year", vehicleYear);
+      formData.append("model_specifics", modelSpecifics);
+      formData.append("issue_type", issueType);
+      formData.append("size_estimate", sizeEstimate);
       formData.append("material", material);
       formData.append("quantity", "1");
       formData.append("has_file", String(files.some((file) => !file.type.startsWith("image/"))));
@@ -244,6 +256,12 @@ export default function QuoteIntakeForm() {
       setName("");
       setPhone("");
       setCompanyName("");
+      setVehicleMake("");
+      setVehicleModel("");
+      setVehicleYear("");
+      setModelSpecifics("");
+      setIssueType("");
+      setSizeEstimate("");
       setMaterial("not_sure");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to submit request.");
@@ -388,6 +406,79 @@ export default function QuoteIntakeForm() {
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="Optional"
                         />
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-700">Vehicle make</span>
+                        <input
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#355894] focus:ring-4 focus:ring-[#355894]/10"
+                          value={vehicleMake}
+                          onChange={(e) => setVehicleMake(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-700">Vehicle model</span>
+                        <input
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#355894] focus:ring-4 focus:ring-[#355894]/10"
+                          value={vehicleModel}
+                          onChange={(e) => setVehicleModel(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-700">Vehicle year</span>
+                        <input
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#355894] focus:ring-4 focus:ring-[#355894]/10"
+                          value={vehicleYear}
+                          onChange={(e) => setVehicleYear(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-700">Model specifics</span>
+                        <input
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#355894] focus:ring-4 focus:ring-[#355894]/10"
+                          value={modelSpecifics}
+                          onChange={(e) => setModelSpecifics(e.target.value)}
+                          placeholder="Optional"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-700">Issue type</span>
+                        <select
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#355894] focus:ring-4 focus:ring-[#355894]/10"
+                          value={issueType}
+                          onChange={(e) => setIssueType(e.target.value)}
+                        >
+                          <option value="">Optional</option>
+                          <option value="broken">Broken</option>
+                          <option value="missing">Missing</option>
+                          <option value="worn">Worn</option>
+                          <option value="can't find replacement">Can’t find replacement</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-700">Size estimate</span>
+                        <select
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#355894] focus:ring-4 focus:ring-[#355894]/10"
+                          value={sizeEstimate}
+                          onChange={(e) => setSizeEstimate(e.target.value)}
+                        >
+                          <option value="">Optional</option>
+                          <option value="<5cm">&lt;5cm</option>
+                          <option value="5–15cm">5–15cm</option>
+                          <option value="15–30cm">15–30cm</option>
+                          <option value="30cm+">30cm+</option>
+                        </select>
                       </label>
                     </div>
 

@@ -10,6 +10,17 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isMissingColumnError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "");
+
+  return /column .* does not exist|could not find the .* column|schema cache/i.test(message);
+}
+
 async function updatePreLeadStatus(preLeadId: string, status: PreLeadStatus) {
   await requireAdminUser();
   const supabase = createSupabaseAdminClient();
@@ -169,8 +180,7 @@ export async function createManualPrelead(formData: FormData) {
   });
 
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from("pre_leads").upsert(
-    {
+  const payload = {
       created_at: lead.created_at,
       source: lead.source,
       source_url: lead.source_url,
@@ -186,6 +196,7 @@ export async function createManualPrelead(formData: FormData) {
       value_reason: lead.value_reason,
       suggested_reply: lead.suggested_reply,
       should_reply: lead.should_reply,
+      search_context: lead.search_context ?? null,
       thread_context_summary: lead.thread_context_summary ?? null,
       manual_notes: lead.manual_notes ?? null,
       status: "active",
@@ -193,9 +204,15 @@ export async function createManualPrelead(formData: FormData) {
       contacted_at: null,
       dismissed_reason: null,
       dismissed_at: null,
-    },
-    { onConflict: "source_url" }
-  );
+    }
+
+  let { error } = await supabase.from("pre_leads").upsert(payload, { onConflict: "source_url" });
+
+  if (error && isMissingColumnError(error)) {
+    const stripped = { ...payload } as Record<string, unknown>
+    delete stripped.search_context
+    ;({ error } = await supabase.from("pre_leads").upsert(stripped, { onConflict: "source_url" }))
+  }
 
   if (error) {
     throw new Error(error.message);
