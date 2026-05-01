@@ -94,6 +94,7 @@ type QueryRunStats = {
   preAiAccepted: number;
   aiAccepted: number;
   inserted: number;
+  duplicates: number;
   lowQualitySignalCount: number;
 };
 
@@ -1517,6 +1518,27 @@ function getPartTypeSignal(text: string, intent?: PreleadIntent) {
 
   if (intent?.physical_part_signals.length) {
     return intent.physical_part_signals.join(", ");
+  }
+
+  return null;
+}
+
+function getScarcitySignal(text: string) {
+  const signals = [
+    "can't find",
+    "discontinued",
+    "no longer available",
+    "oem unavailable",
+    "anyone know where to get",
+    "replacement part not available",
+    "obsolete",
+    "not available",
+  ];
+
+  for (const signal of signals) {
+    if (text.toLowerCase().includes(signal)) {
+      return signal;
+    }
   }
 
   return null;
@@ -2971,6 +2993,7 @@ function getOrCreateQueryStats(map: Map<string, QueryRunStats>, query: string) {
     preAiAccepted: 0,
     aiAccepted: 0,
     inserted: 0,
+    duplicates: 0,
     lowQualitySignalCount: 0,
   };
   map.set(query, created);
@@ -3064,6 +3087,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
         if (seenCandidateUrls.has(url)) {
           duplicateCandidatesSkipped += 1;
+          if (candidate.query_used?.trim()) {
+            getOrCreateQueryStats(queryStats, candidate.query_used.trim()).duplicates += 1;
+          }
           continue;
         }
 
@@ -3366,6 +3392,14 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           }))
         );
       }
+
+      for (const { candidate } of accepted.slice(0, 10)) {
+        const lead = preAiCandidateByUrl.get(candidate.source_url)?.lead;
+        const text = lead ? getCandidateText(lead) : `${candidate.title} ${candidate.snippet}`;
+        logger.info(
+          `accepted query=${candidate.query_used ?? "none"} scarcity=${getScarcitySignal(text) ?? "none"} part_type=${getPartTypeSignal(text, preAiCandidateByUrl.get(candidate.source_url)?.intent) ?? "none"} duplicate_status=unique` 
+        );
+      }
     } else {
       aiRejectedCount = aiCandidates.length;
       for (const candidate of aiCandidates) {
@@ -3544,6 +3578,10 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       duplicateCandidatesSkippedAfterAi = duplicateUrls.size;
       finalRejectedAfterAiCount += duplicateUrls.size;
       for (const duplicateUrl of duplicateUrls) {
+        const queryUsed = rawCandidateByUrl.get(duplicateUrl)?.query_used?.trim();
+        if (queryUsed) {
+          getOrCreateQueryStats(queryStats, queryUsed).duplicates += 1;
+        }
         incrementReasonCount(finalRejectedReasonCounts, "duplicate");
         const priorDecision = aiDecisionByUrl.get(duplicateUrl);
         aiDecisionByUrl.set(duplicateUrl, {
@@ -3599,7 +3637,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       queryHealthChanged = true;
 
       logger.info(
-        `query stats: fetched=${stats.fetched} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} low_quality_only=${lowQualityOnly ? "yes" : "no"} query=${query}`
+        `query stats: fetched=${stats.fetched} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} duplicates=${stats.duplicates} low_quality_only=${lowQualityOnly ? "yes" : "no"} query=${query}`
       );
 
       if (lowQualityOnly && lowQualityStreak >= 3) {

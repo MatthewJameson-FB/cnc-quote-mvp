@@ -1,18 +1,18 @@
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
 const QUERIES = [
-  'site:reddit.com "BMW E46" "can\'t find part" "trim" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "BMW E90" "broken clip" "replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "MX5 NA" "missing trim" "replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "Mazda MX5" "dashboard trim" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "VW Golf MK5" "door card clip" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "Audi A3" "interior trim clip" "can\'t find part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:reddit.com "Nissan 350Z" "missing trim" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:pistonheads.com "discontinued trim" "car" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:pistonheads.com "can\'t find" "interior trim" "car" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:mx5oc.co.uk "MX5 NA" "trim clip" "can\'t find part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:vwvortex.com "Golf MK5" "broken clip" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
-  'site:bimmerforums.com "E46" "trim clip" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "no longer available" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "discontinued" "interior trim" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "can\'t find" "plastic clip" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "can\'t find" "trim piece" "MX5 NA" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "OEM unavailable" bracket car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "replacement part not available" "classic car" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "where can I get" "dashboard trim" "MX5" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "discontinued" "retainer clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "can\'t find" "interior cover" "VW Golf" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:pistonheads.com "obsolete" "car trim clip" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:mx5oc.co.uk "discontinued" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:bimmerforums.com "can\'t find" "trim piece" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
 ];
 
 type SearchRecency = "day" | "week" | "month" | "any";
