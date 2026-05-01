@@ -345,8 +345,11 @@ export default function QuoteIntakeForm() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-slate-900">Choose photos or file</p>
-                        <p className="text-sm leading-6 text-slate-500">Photos are enough to start.</p>
+                        <p className="text-sm leading-6 text-slate-500">Photos are enough to start. CAD or 3D files can make things faster and more accurate.</p>
                       </div>
+                    </div>
+                    <div className="mt-3 inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                      ⚡ Faster with CAD/STL
                     </div>
                     <input
                       type="file"
@@ -552,6 +555,10 @@ export default function QuoteIntakeForm() {
                   <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{submitError}</p>
                 ) : null}
 
+                <p className="text-sm leading-6 text-slate-600">
+                  If you already have a CAD file or 3D model, you can include it or send it later — it can reduce cost and speed things up.
+                </p>
+
                 <button
                   type="submit"
                   disabled={submitting}
@@ -566,6 +573,7 @@ export default function QuoteIntakeForm() {
                     <p className="mt-2 text-2xl font-black text-slate-950">Thanks — we’ve got it.</p>
                     <p className="mt-3 text-sm leading-7 text-slate-600">We’ll review the photos and come back with a clear next step.</p>
                     <p className="mt-4 text-sm leading-7 text-slate-500">Most projects fall between £100–£400 depending on complexity.</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">If you have a CAD file or 3D model, you can reply with it — this can speed things up and improve accuracy.</p>
                     <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                       <button
                         type="button"

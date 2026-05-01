@@ -412,6 +412,7 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
       : "If you have more photos or a photo with a ruler next to it, that helps a lot.",
     "",
     "You can just reply to this email with the details 👍",
+    "If you already have a CAD file or 3D model, feel free to reply with it — it can help speed things up and reduce cost.",
     "",
     "Once we have this, we’ll confirm the final quote and get things moving.",
     "",
@@ -454,6 +455,7 @@ export async function sendChecklistEmail(details: ChecklistEmailDetails) {
             : "If you have more photos or a photo with a ruler next to it, that helps a lot."
         )}</p>
         <p style="margin:0 0 12px">You can just reply to this email with the details 👍</p>
+        <p style="margin:0 0 12px">If you already have a CAD file or 3D model, feel free to reply with it — it can help speed things up and reduce cost.</p>
         <p style="margin:0 0 12px">Once we have this, we’ll confirm the final quote and get things moving.</p>
         <p style="margin:0 0 12px;color:#475569">You can reply directly to this email with the details 👍</p>
         <div style="padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#475569">${escapeHtml(quoteLine)}</div>
