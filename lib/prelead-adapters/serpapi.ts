@@ -1,21 +1,18 @@
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
-const INTENT_PHRASES = [
-  '"can\'t find part"',
-  "discontinued",
-  '"broken clip"',
-  '"missing trim"',
-  '"need replacement"',
-  '"anyone know where to get"',
-];
-
 const QUERIES = [
-  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("BMW E46" OR "BMW E90") (${INTENT_PHRASES.join(" OR ")})`,
-  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Audi A3" OR "Audi A4") (${INTENT_PHRASES.join(" OR ")})`,
-  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("VW Golf GTI") (${INTENT_PHRASES.join(" OR ")})`,
-  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Mazda MX5") (${INTENT_PHRASES.join(" OR ")})`,
-  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Nissan 350Z" OR "Nissan 370Z") (${INTENT_PHRASES.join(" OR ")})`,
-  `(site:reddit.com OR site:pistonheads.com OR site:forum.* OR site:club.*) ("Subaru WRX STI") (${INTENT_PHRASES.join(" OR ")})`,
+  'site:reddit.com "BMW E46" "can\'t find part" "trim" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "BMW E90" "broken clip" "replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "MX5 NA" "missing trim" "replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "Mazda MX5" "dashboard trim" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "VW Golf MK5" "door card clip" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "Audi A3" "interior trim clip" "can\'t find part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:reddit.com "Nissan 350Z" "missing trim" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:pistonheads.com "discontinued trim" "car" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:pistonheads.com "can\'t find" "interior trim" "car" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:mx5oc.co.uk "MX5 NA" "trim clip" "can\'t find part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:vwvortex.com "Golf MK5" "broken clip" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
+  'site:bimmerforums.com "E46" "trim clip" "need replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"',
 ];
 
 type SearchRecency = "day" | "week" | "month" | "any";

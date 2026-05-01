@@ -89,6 +89,25 @@ type MonitorResult = {
   leads: Prelead[];
 };
 
+type QueryRunStats = {
+  fetched: number;
+  preAiAccepted: number;
+  aiAccepted: number;
+  inserted: number;
+  lowQualitySignalCount: number;
+};
+
+type QueryHealthEntry = {
+  lowQualityStreak: number;
+  lastRunAt: string | null;
+  lastLowQualityOnly: boolean;
+};
+
+type QueryHealthState = {
+  version: 1;
+  queries: Record<string, QueryHealthEntry>;
+};
+
 type FetchedItem = {
   title: string;
   body: string;
@@ -149,6 +168,7 @@ type RedditTokenCacheEntry = {
 const ROOT = process.cwd();
 const OUTPUT_PATH = path.join(ROOT, "data", "preleads.json");
 const SOURCES_FILE = path.join(ROOT, "data", "prelead-sources.json");
+const QUERY_HEALTH_PATH = path.join(ROOT, "data", "prelead-query-health.json");
 const BUILTIN_SUBREDDITS = [
   "CNC",
   "Machinists",
@@ -2768,7 +2788,6 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
       value_reason: lead.value_reason,
       suggested_reply: lead.suggested_reply,
       should_reply: lead.should_reply,
-      search_context: lead.search_context ?? null,
       thread_context_summary: lead.thread_context_summary ?? null,
       manual_notes: lead.manual_notes ?? null,
       status: "new",
@@ -2780,7 +2799,7 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
     };
 
     let error = await insertRows(payload);
-    if (error && /(thread_context_summary|should_reply|manual_notes|search_context|value_tier|value_score|value_reason)/.test(String(error))) {
+    if (error && /(thread_context_summary|should_reply|manual_notes|value_tier|value_score|value_reason)/.test(String(error))) {
       logger.warn("Supabase insert retrying without derived reply/thread/value columns (schema cache lag?)");
       error = await insertRows(
         payload.map((row) => {
@@ -2788,7 +2807,6 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
           delete stripped.thread_context_summary;
           delete stripped.should_reply;
           delete stripped.manual_notes;
-          delete stripped.search_context;
           delete stripped.value_tier;
           delete stripped.value_score;
           delete stripped.value_reason;
@@ -2850,6 +2868,52 @@ async function saveToJson(leads: Prelead[], outputPath: string) {
   await writeFile(outputPath, JSON.stringify(leads, null, 2) + "\n", "utf8");
 }
 
+function getOrCreateQueryStats(map: Map<string, QueryRunStats>, query: string) {
+  const existing = map.get(query);
+  if (existing) return existing;
+
+  const created: QueryRunStats = {
+    fetched: 0,
+    preAiAccepted: 0,
+    aiAccepted: 0,
+    inserted: 0,
+    lowQualitySignalCount: 0,
+  };
+  map.set(query, created);
+  return created;
+}
+
+async function loadQueryHealthState(): Promise<QueryHealthState> {
+  try {
+    const raw = await readFile(QUERY_HEALTH_PATH, "utf8");
+    const parsed = JSON.parse(raw) as Partial<QueryHealthState> | null;
+    if (!parsed || parsed.version !== 1 || !parsed.queries || typeof parsed.queries !== "object") {
+      return { version: 1, queries: {} };
+    }
+
+    return {
+      version: 1,
+      queries: Object.fromEntries(
+        Object.entries(parsed.queries).map(([query, entry]) => [
+          query,
+          {
+            lowQualityStreak: Number(entry?.lowQualityStreak ?? 0),
+            lastRunAt: typeof entry?.lastRunAt === "string" ? entry.lastRunAt : null,
+            lastLowQualityOnly: Boolean(entry?.lastLowQualityOnly),
+          },
+        ])
+      ),
+    };
+  } catch {
+    return { version: 1, queries: {} };
+  }
+}
+
+async function saveQueryHealthState(state: QueryHealthState) {
+  await mkdir(path.dirname(QUERY_HEALTH_PATH), { recursive: true });
+  await writeFile(QUERY_HEALTH_PATH, JSON.stringify(state, null, 2) + "\n", "utf8");
+}
+
 export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<MonitorResult> {
   const debugEnabled = isTruthy(process.env.PRELEAD_DEBUG);
   const includeOutsideUk = isTruthy(process.env.PRELEAD_INCLUDE_OUTSIDE_UK);
@@ -2884,6 +2948,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   const seenCandidateUrls = new Set<string>();
   let duplicateCandidatesSkipped = 0;
   let totalFetchedCandidates = 0;
+  const queryStats = new Map<string, QueryRunStats>();
 
   for (const adapter of adapters) {
     await sleep(requestDelayMs);
@@ -2894,6 +2959,10 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       logger.info(`${adapter.name}: fetched ${candidates.length} candidates`);
 
       for (const candidate of candidates) {
+        if (candidate.query_used?.trim()) {
+          getOrCreateQueryStats(queryStats, candidate.query_used.trim()).fetched += 1;
+        }
+
         const url = candidate.source_url.trim();
         if (!url) {
           continue;
@@ -2956,10 +3025,10 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
   for (const { lead, intent } of orderedScoredCandidates) {
     try {
+      const rawCandidate = rawCandidateByUrl.get(lead.source_url);
       const preAiHardRejectReason = useAiPipeline ? getPreAiHardRejectReason(lead, intent) : null;
 
       if (debugEnabled) {
-        const rawCandidate = rawCandidateByUrl.get(lead.source_url);
         logger.debug(
           `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} comment_context_used=${rawCandidate?.comment_context_used ? 'yes' : 'no'} comment_context_reason=${rawCandidate?.comment_context_reason ?? 'none'} thread_context_summary=${formatThreadContextSummary(rawCandidate?.thread_context_summary ?? null)} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
         );
@@ -2971,7 +3040,20 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       if (preAiHardRejectReason) {
         pushToBucket(preAiRejectionBuckets, preAiHardRejectReason, lead);
         incrementReasonCount(preAiRejectedReasonCounts, preAiHardRejectReason);
+
+        const queryUsed = rawCandidate?.query_used?.trim();
+        if (queryUsed) {
+          const stats = getOrCreateQueryStats(queryStats, queryUsed);
+          if (preAiHardRejectReason === "low_quality_signal") {
+            stats.lowQualitySignalCount += 1;
+          }
+        }
         continue;
+      }
+
+      const queryUsed = rawCandidate?.query_used?.trim();
+      if (queryUsed) {
+        getOrCreateQueryStats(queryStats, queryUsed).preAiAccepted += 1;
       }
 
       preAiCandidates.push({ lead, intent });
@@ -3074,6 +3156,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
         aiAcceptedCount += 1;
         accepted.push({ candidate, classification });
+
+        const queryUsed = rawCandidateByUrl.get(candidate.source_url)?.query_used?.trim();
+        if (queryUsed) {
+          getOrCreateQueryStats(queryStats, queryUsed).aiAccepted += 1;
+        }
 
         const finalRejectionReason = getFinalAiRejectionReason(
           preAiCandidate.lead,
@@ -3363,6 +3450,13 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     candidateLeads = freshLeads;
   }
 
+  for (const lead of candidateLeads) {
+    const queryUsed = rawCandidateByUrl.get(lead.source_url)?.query_used?.trim();
+    if (queryUsed) {
+      getOrCreateQueryStats(queryStats, queryUsed).inserted += 1;
+    }
+  }
+
   if (debugEnabled) {
     logger.debug("top 5 final rejection reasons (post-duplicate-check):", topReasonCounts(finalRejectedReasonCounts));
   }
@@ -3378,6 +3472,41 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   if (debugEnabled) {
     logger.info(`stage counts (final): fetched=${totalFetchedCandidates} deduped=${rawCandidates.length} hard_rejected_before_ai=${[...preAiRejectedReasonCounts.values()].reduce((sum, count) => sum + count, 0)} sent_to_ai=${aiCandidatesSent} ai_accepted=${aiAcceptedCount} ai_rejected=${aiRejectedCount} final_rejected_after_ai=${finalRejectedAfterAiCount} inserted=${savedToSupabase}`);
   }
+
+  if (queryStats.size > 0) {
+    const queryHealth = await loadQueryHealthState();
+    let queryHealthChanged = false;
+
+    for (const [query, stats] of queryStats.entries()) {
+      const lowQualityOnly = stats.fetched > 0 && stats.lowQualitySignalCount === stats.fetched;
+      const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false };
+      const lowQualityStreak = lowQualityOnly ? previous.lowQualityStreak + 1 : 0;
+
+      queryHealth.queries[query] = {
+        lowQualityStreak,
+        lastRunAt: new Date().toISOString(),
+        lastLowQualityOnly: lowQualityOnly,
+      };
+      queryHealthChanged = true;
+
+      logger.info(
+        `query stats: fetched=${stats.fetched} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} low_quality_only=${lowQualityOnly ? "yes" : "no"} query=${query}`
+      );
+
+      if (lowQualityOnly && lowQualityStreak >= 3) {
+        logger.warn(`low-yield query: streak=${lowQualityStreak} query=${query}`);
+      }
+    }
+
+    if (queryHealthChanged) {
+      try {
+        await saveQueryHealthState(queryHealth);
+      } catch (error) {
+        logger.warn(`Query health state write skipped: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
   leads.length = 0;
   leads.push(...candidateLeads);
 
