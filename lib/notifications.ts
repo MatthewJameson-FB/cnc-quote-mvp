@@ -172,86 +172,51 @@ function primaryPhotoLink(details: QuoteNotificationDetails) {
   return details.photoUrls?.[0] || details.fileUrls?.[0] || null;
 }
 
-function renderActionButtons(yesUrl?: string, noUrl?: string) {
-  if (!yesUrl && !noUrl) return "";
-
-  return `
-    <div style="margin-top:16px">
-      ${yesUrl ? `<a href="${escapeHtml(yesUrl)}" style="display:inline-block;margin:0 12px 12px 0;padding:12px 18px;border-radius:10px;background:#0f766e;color:#fff;text-decoration:none;font-weight:700">Yes, proceed to exact quote</a>` : ""}
-      ${noUrl ? `<a href="${escapeHtml(noUrl)}" style="display:inline-block;margin:0 12px 12px 0;padding:12px 18px;border-radius:10px;background:#fff;color:#334155;text-decoration:none;font-weight:700;border:1px solid #cbd5e1">This is higher than expected</a>` : ""}
-    </div>
-  `;
-}
-
-function renderEstimateSummary(details: QuoteNotificationDetails) {
-  if (!details.estimate) return "—";
-
-  const cad = details.estimate.breakdown.cad
-    ? `CAD £${details.estimate.breakdown.cad[0]}–£${details.estimate.breakdown.cad[1]}`
-    : null;
-  const manufacturing = details.estimate.breakdown.manufacturing
-    ? `Manufacturing £${details.estimate.breakdown.manufacturing[0]}–£${details.estimate.breakdown.manufacturing[1]}`
-    : null;
-
-  return [
-    `£${details.estimate.min_price}–£${details.estimate.max_price} ${details.estimate.currency}`,
-    cad,
-    manufacturing,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
 function customerQuoteEmailText(details: QuoteNotificationDetails) {
-  const estimateLine = details.estimate
-    ? `Rough estimate: £${details.estimate.min_price}–£${details.estimate.max_price} ${details.estimate.currency}`
-    : null;
-  const confidenceLine = details.estimate ? `Confidence: ${details.estimate.confidence}` : null;
+  const vehicle = vehicleLabel(details);
 
   return [
-    "We received your custom part request",
+    "Thanks — we’ve received your part request.",
     "",
-    `Name: ${details.name}`,
-    `Email: ${details.email}`,
-    `Material: ${details.material}`,
-    `Quantity: ${details.quantity}`,
-    estimateLine,
-    confidenceLine,
-    details.estimate?.disclaimer ?? null,
+    "We’ll review the photos/details manually and come back with a realistic next step.",
     "",
-    "If this estimate looks reasonable, confirm and we’ll try to get an exact quote from a suitable supplier.",
-    details.confirmationYesUrl ? `Yes, proceed: ${details.confirmationYesUrl}` : null,
-    details.confirmationNoUrl ? `Higher than expected: ${details.confirmationNoUrl}` : null,
+    `Part: ${details.description?.trim() || "Part request"}`,
+    vehicle ? `Vehicle: ${vehicle}` : null,
+    details.photoUrls?.length ? `Photos received: ${details.photoUrls.length}` : null,
+    details.fileUrls?.length ? "File received: yes" : null,
     "",
-    "You can reply directly to this email with the details 👍",
+    "Photos are enough to start. If we need measurements or a scale photo, we’ll ask for them before confirming the next step.",
+    "If you already have a CAD file, STL, or 3D model, you can reply with it — it can make things faster and more accurate.",
+    "",
+    "Thanks,",
+    "Flangie",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 function customerQuoteEmailHtml(details: QuoteNotificationDetails) {
-  const estimateCard = details.estimate
-    ? `
-      <div style="margin:16px 0;padding:20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
-        <h3 style="margin:0 0 10px;font-size:18px">Rough estimate</h3>
-        <div style="font-size:28px;font-weight:800;color:#0f172a">£${details.estimate.min_price}–£${details.estimate.max_price}</div>
-        <div style="margin-top:8px;color:#475569;font-size:14px">Confidence: ${escapeHtml(details.estimate.confidence)}</div>
-        <div style="margin-top:10px;color:#64748b;font-size:14px">${escapeHtml(details.estimate.disclaimer)}</div>
-        <div style="margin-top:10px;color:#334155;font-size:14px">${escapeHtml(renderEstimateSummary(details))}</div>
-      </div>
-    `
-    : "";
+  const vehicle = vehicleLabel(details);
+  const photoCount = details.photoUrls?.length ?? 0;
+  const fileCount = details.fileUrls?.length ?? 0;
 
   return `
     <div style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;line-height:1.5">
       <div style="max-width:640px;margin:0 auto">
         <div style="padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px">
-          <h2 style="margin:0 0 12px;font-size:28px">We received your custom part request</h2>
-          <p style="margin:0 0 12px;color:#475569">Thanks — we’ll review this manually and get back to you.</p>
-          ${estimateCard}
-          <p style="margin:0 0 12px;color:#334155">If this estimate looks reasonable, confirm and we’ll try to get an exact quote from a suitable supplier.</p>
-          ${renderActionButtons(details.confirmationYesUrl, details.confirmationNoUrl)}
-          <p style="margin:12px 0 0;color:#64748b">You can reply directly to this email with the details 👍</p>
+          <h2 style="margin:0 0 12px;font-size:28px">Thanks — we’ve got your part request</h2>
+          <p style="margin:0 0 14px;color:#475569">We’ll review the photos/details manually and come back with a realistic next step.</p>
+
+          <div style="margin:16px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px">
+            <div style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Request summary</div>
+            <p style="margin:0 0 6px;color:#0f172a"><strong>Part:</strong> ${escapeHtml(details.description?.trim() || "Part request")}</p>
+            ${vehicle ? `<p style="margin:0 0 6px;color:#0f172a"><strong>Vehicle:</strong> ${escapeHtml(vehicle)}</p>` : ""}
+            ${photoCount ? `<p style="margin:0 0 6px;color:#0f172a"><strong>Photos received:</strong> ${photoCount}</p>` : ""}
+            ${fileCount ? `<p style="margin:0;color:#0f172a"><strong>File received:</strong> yes</p>` : ""}
+          </div>
+
+          <p style="margin:0 0 12px;color:#334155">Photos are enough to start. If we need measurements or a scale photo, we’ll ask for them before confirming the next step.</p>
+          <p style="margin:0;color:#64748b">If you already have a CAD file, STL, or 3D model, you can reply with it — it can make things faster and more accurate.</p>
         </div>
       </div>
     </div>
@@ -337,8 +302,20 @@ function internalQuoteEmailHtml(details: QuoteNotificationDetails) {
   `;
 }
 
+function getInternalAlertRecipient() {
+  const direct = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
+  if (direct) return direct;
+
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+
+  return adminEmails[0] ?? null;
+}
+
 export async function sendQuoteNotifications(details: QuoteNotificationDetails) {
-  const internalEmail = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
+  const internalEmail = getInternalAlertRecipient();
 
   const tasks = [
     sendResendEmail({
@@ -649,20 +626,8 @@ export async function sendCronPreleadSummaryEmail(details: {
   return true;
 }
 
-function getInboundPartAlertRecipient() {
-  const direct = process.env.QUOTE_INTERNAL_NOTIFY_EMAIL?.trim();
-  if (direct) return direct;
-
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map((email) => email.trim())
-    .filter(Boolean);
-
-  return adminEmails[0] ?? null;
-}
-
 export async function sendInboundPartSubmissionEmail(details: InboundPartSubmissionEmailDetails) {
-  const to = getInboundPartAlertRecipient();
+  const to = getInternalAlertRecipient();
 
   if (!to) {
     return { sent: false, skipped: true, providerId: null, error: 'Missing admin email recipient.' }

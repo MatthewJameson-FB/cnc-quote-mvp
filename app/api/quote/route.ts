@@ -309,9 +309,7 @@ export async function POST(req: Request) {
           error:
             intakeValidationReason === "missing_file_or_photo"
               ? "Upload at least one file or photo."
-              : intakeValidationReason === "photos_missing_measurements"
-                ? "Measurements are required when uploading photos."
-                : "Description is required when uploading photos.",
+              : "Description is required.",
           intake_validation_reason: intakeValidationReason,
         },
         { status: 400 }

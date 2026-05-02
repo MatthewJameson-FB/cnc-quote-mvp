@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
       imageUrl: image ? storedImageUrl : image_url || null,
       valueScore: value.value_score,
       valueTier: value.value_tier,
-      adminLink: `${request.nextUrl.origin}/internal-admin/pre-leads?status=active&value=high_medium`,
+      adminLink: `${request.nextUrl.origin}/admin/preleads?source=inbound`,
     }).catch((mailError) => {
       console.error('INBOUND PART ALERT EMAIL ERROR:', mailError)
     })
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
     imageUrl: image ? storedImageUrl : image_url || null,
     valueScore: value.value_score,
     valueTier: value.value_tier,
-    adminLink: `${request.nextUrl.origin}/internal-admin/pre-leads?status=active&value=high_medium`,
+    adminLink: `${request.nextUrl.origin}/admin/preleads?source=inbound`,
   }).catch((mailError) => {
     console.error('INBOUND PART ALERT EMAIL ERROR:', mailError)
   })

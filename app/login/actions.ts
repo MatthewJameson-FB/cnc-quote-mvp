@@ -49,7 +49,7 @@ export async function signIn(
     expiresIn: data.session.expires_in,
   });
 
-  redirect("/internal-admin");
+  redirect("/admin");
 }
 
 export async function signOut() {

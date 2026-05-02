@@ -48,7 +48,7 @@ export default function SubmitPartForm() {
         formData.append('file', image)
       }
 
-      const response = await fetch('/api/submit-part', {
+      const response = await fetch('/api/quote', {
         method: 'POST',
         body: formData,
       })

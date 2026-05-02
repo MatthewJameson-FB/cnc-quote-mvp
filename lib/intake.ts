@@ -74,13 +74,6 @@ export function validateLeadIntake(lead: Pick<LeadIntake, "has_file" | "has_phot
     };
   }
 
-  if (lead.has_photos && !lead.measurements?.trim()) {
-    return {
-      isValid: false,
-      reason: "photos_missing_measurements",
-    };
-  }
-
   if (lead.has_photos && !lead.description?.trim()) {
     return {
       isValid: false,
