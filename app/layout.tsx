@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Flangie | AI marketing decision team",
-  description: "Improve ad performance with an AI marketing team that analyzes campaigns, debates findings, and recommends better decisions.",
+  title: "Flangie | Hard-to-find car parts recreated from photos",
+  description: "Upload photos of hard-to-find car parts, trims, clips and brackets. Flangie helps turn vague requests into clearer replacement-part jobs.",
 };
 
 export default function RootLayout({
