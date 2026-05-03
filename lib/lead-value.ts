@@ -34,6 +34,9 @@ const unavailablePatterns = [
   /can't find/i,
   /cannot find/i,
   /discontinued/i,
+  /nla/i,
+  /no longer available/i,
+  /dealer unavailable/i,
   /no replacement/i,
   /oem too expensive/i,
   /manufacturer doesn't sell/i,
@@ -51,6 +54,8 @@ const usageBlockingPatterns = [
   /broken clip/i,
   /snapped clip/i,
   /loose panel/i,
+  /need a bracket/i,
+  /custom mount/i,
 ]
 
 const simplePartPatterns = [
@@ -64,6 +69,9 @@ const simplePartPatterns = [
   /\bpanel\b/i,
   /\bhousing\b/i,
   /\bmount\b/i,
+  /\btab\b/i,
+  /\bvent\b/i,
+  /\badapter\b/i,
 ]
 
 const internalElectricalPatterns = [
@@ -87,6 +95,27 @@ const lowValuePatterns = [
   /\btoy\b/i,
   /\bcheap\b/i,
   /\bremote\b/i,
+]
+
+const multiUserPatterns = [
+  /\banyone else\b/i,
+  /\bmultiple people\b/i,
+  /\bgroup buy\b/i,
+  /\bwe need\b/i,
+]
+
+const showcasePatterns = [
+  /\bfixed\b/i,
+  /\bsolved\b/i,
+  /\bbefore and after\b/i,
+  /\bfinally done\b/i,
+  /\bshowcase\b/i,
+]
+
+const noIntentPatterns = [
+  /\bany ideas\b/i,
+  /\bwhat is this\b/i,
+  /\bjust curious\b/i,
 ]
 
 export type LeadValueScoreResult = {
@@ -127,8 +156,23 @@ export function scoreLeadValue(text: string): LeadValueScoreResult {
   }
 
   if (simplePartPatterns.some((pattern) => pattern.test(haystack))) {
+    value_score += 2
+    reasons.push('simple manufacturable geometry')
+  }
+
+  if (multiUserPatterns.some((pattern) => pattern.test(haystack))) {
     value_score += 1
-    reasons.push('simple part')
+    reasons.push('multiple users same issue')
+  }
+
+  if (showcasePatterns.some((pattern) => pattern.test(haystack))) {
+    value_score -= 3
+    reasons.push('already solved/showcase')
+  }
+
+  if (noIntentPatterns.some((pattern) => pattern.test(haystack))) {
+    value_score -= 2
+    reasons.push('no clear intent')
   }
 
   if (internalElectricalPatterns.some((pattern) => pattern.test(haystack))) {

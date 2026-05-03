@@ -7,6 +7,7 @@ import { buildSearchContext } from "@/lib/research-context";
 import { formatThreadContextSummary, summarizeThreadContext, type ThreadContextSummary } from "@/lib/prelead-thread-context";
 import { buildEnabledPreleadAdapters } from "@/lib/prelead-adapters";
 import { buildRedditSearchQueries } from "@/lib/discovery-query-templates";
+import { classifyLeadType, type PreleadLeadType } from "@/lib/prelead-lead-type";
 import type { RawPreleadCandidate } from "@/lib/prelead-adapters/types";
 import {
   type AiPreleadClassification,
@@ -59,6 +60,7 @@ export type Prelead = {
   description?: string;
   routing_decision?: LeadRoute;
   part_candidate?: boolean;
+  lead_type?: PreleadLeadType;
   intake_validation_reason?: string | null;
 };
 
@@ -131,10 +133,13 @@ type QueryHealthEntry = {
   zeroAcceptedStreak: number;
   lastAcceptedCount: number;
   disabled: boolean;
+  insertedStreak: number;
+  hasWinningRun: boolean;
+  temporarilyExhaustedUntil: string | null;
 };
 
 type QueryHealthState = {
-  version: 1;
+  version: 1 | 2;
   queries: Record<string, QueryHealthEntry>;
 };
 
@@ -1433,6 +1438,7 @@ function enrichLeadIntake(prelead: Omit<Prelead, "suggested_reply">, intent: Pre
     part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
     lead_score: prelead.lead_score - evidencePenalty,
     intake_validation_reason: validation.reason,
+    lead_type: prelead.lead_type ?? inferLeadTypeText(combined, routingDecision),
     should_reply: prelead.should_reply,
   } satisfies Omit<Prelead, "suggested_reply">;
 }
@@ -2030,6 +2036,15 @@ function buildBaseSuggestedReply(prelead: Omit<Prelead, "suggested_reply" | "sho
   return `${intro} ${tinyPartHook}${problemLine ? ` ${problemLine}` : ""}. If you’ve got a file, photos, or a rough measurement, that’s enough to start.`.replace(/\s+/g, " ").trim();
 }
 
+function inferLeadTypeText(text: string, leadRoute?: LeadRoute) {
+  const leadType = classifyLeadType(text);
+  if (leadType !== "not_relevant") return leadType;
+  if (leadRoute === "cad_required" || leadRoute === "cad_then_route") return "needs_cad_or_stl";
+  if (leadRoute === "3d_print") return "needs_cad_or_stl";
+  if (leadRoute === "cnc") return "custom_fabrication_request";
+  return leadType;
+}
+
 function buildSuggestedReply(prelead: Omit<Prelead, "suggested_reply">, problemSummary: string) {
   const context = prelead.thread_context_summary ?? null;
 
@@ -2123,6 +2138,7 @@ function fromPlainText(
     created_at: createdAt,
     should_reply: false,
     thread_context_summary: threadContextSummary,
+    lead_type: inferLeadTypeText(`${title} ${text}`, undefined),
   }, intent);
 
   return {
@@ -2187,6 +2203,7 @@ export function buildManualPrelead(input: ManualPreleadInput): Prelead {
       manual_notes: input.notes?.trim() || null,
       stage,
       manufacturing_type: manufacturingType,
+      lead_type: inferLeadTypeText(`${title} ${combinedText}`, routingDecision),
     },
     intent
   );
@@ -2200,6 +2217,7 @@ export function buildManualPrelead(input: ManualPreleadInput): Prelead {
     suggested_reply: shouldReply ? buildManualSuggestedReply({ ...prelead, should_reply: shouldReply }, problemSummary) : "",
     routing_decision: routingDecision,
     part_candidate: routingDecision === "cad_required" || routingDecision === "cad_then_route",
+    lead_type: inferLeadTypeText(`${title} ${combinedText}`, routingDecision),
     search_context: buildSearchContext({
       title,
       post_text: combinedText,
@@ -3035,6 +3053,7 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
       should_reply: lead.should_reply,
       thread_context_summary: lead.thread_context_summary ?? null,
       manual_notes: lead.manual_notes ?? null,
+      lead_type: lead.lead_type ?? null,
       status: "new",
     }));
 
@@ -3052,6 +3071,7 @@ async function saveToSupabase(leads: Prelead[], logger: Logger, debugEnabled: bo
           delete stripped.thread_context_summary;
           delete stripped.should_reply;
           delete stripped.manual_notes;
+          delete stripped.lead_type;
           delete stripped.value_tier;
           delete stripped.value_score;
           delete stripped.value_reason;
@@ -3147,12 +3167,12 @@ async function loadQueryHealthState(): Promise<QueryHealthState> {
   try {
     const raw = await readFile(QUERY_HEALTH_PATH, "utf8");
     const parsed = JSON.parse(raw) as Partial<QueryHealthState> | null;
-    if (!parsed || parsed.version !== 1 || !parsed.queries || typeof parsed.queries !== "object") {
-      return { version: 1, queries: {} };
+    if (!parsed || (parsed.version !== 1 && parsed.version !== 2) || !parsed.queries || typeof parsed.queries !== "object") {
+      return { version: 2, queries: {} };
     }
 
     return {
-      version: 1,
+      version: 2,
       queries: Object.fromEntries(
         Object.entries(parsed.queries).map(([query, entry]) => [
           query,
@@ -3163,12 +3183,15 @@ async function loadQueryHealthState(): Promise<QueryHealthState> {
             zeroAcceptedStreak: Number(entry?.zeroAcceptedStreak ?? 0),
             lastAcceptedCount: Number(entry?.lastAcceptedCount ?? 0),
             disabled: Boolean(entry?.disabled),
+            insertedStreak: Number(entry?.insertedStreak ?? 0),
+            hasWinningRun: Boolean(entry?.hasWinningRun),
+            temporarilyExhaustedUntil: typeof entry?.temporarilyExhaustedUntil === "string" ? entry.temporarilyExhaustedUntil : null,
           },
         ])
       ),
     };
   } catch {
-    return { version: 1, queries: {} };
+    return { version: 2, queries: {} };
   }
 }
 
@@ -3852,10 +3875,28 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
     for (const [query, stats] of queryStats.entries()) {
       const lowQualityOnly = stats.fetched > 0 && stats.lowQualitySignalCount === stats.fetched;
-      const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false, zeroAcceptedStreak: 0, lastAcceptedCount: 0, disabled: false };
+      const previous = queryHealth.queries[query] ?? {
+        lowQualityStreak: 0,
+        lastRunAt: null,
+        lastLowQualityOnly: false,
+        zeroAcceptedStreak: 0,
+        lastAcceptedCount: 0,
+        disabled: false,
+        insertedStreak: 0,
+        hasWinningRun: false,
+        temporarilyExhaustedUntil: null,
+      };
       const lowQualityStreak = lowQualityOnly ? previous.lowQualityStreak + 1 : 0;
       const zeroAcceptedStreak = stats.accepted === 0 ? previous.zeroAcceptedStreak + 1 : 0;
-      const disabled = lowQualityStreak >= 3 || zeroAcceptedStreak >= 3;
+      const winningRun = previous.hasWinningRun || stats.inserted > 0;
+      const insertedStreak = stats.inserted > 0 ? 0 : (previous.insertedStreak ?? 0) + 1;
+      const exhaustedWinningQuery = winningRun && insertedStreak >= 3;
+      const temporarilyExhaustedUntil = exhaustedWinningQuery
+        ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+        : stats.inserted > 0
+          ? null
+          : previous.temporarilyExhaustedUntil ?? null;
+      const disabled = !winningRun && (lowQualityStreak >= 3 || zeroAcceptedStreak >= 3);
 
       queryHealth.queries[query] = {
         lowQualityStreak,
@@ -3864,6 +3905,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         zeroAcceptedStreak,
         lastAcceptedCount: stats.accepted,
         disabled,
+        insertedStreak,
+        hasWinningRun: winningRun,
+        temporarilyExhaustedUntil,
       };
       queryHealthChanged = true;
 
@@ -3871,7 +3915,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         `query stats: fetched=${stats.fetched} sent_to_ai=${stats.sentToAi} pre_ai_accepted=${stats.preAiAccepted} ai_accepted=${stats.aiAccepted} inserted=${stats.inserted} duplicates=${stats.duplicates} low_quality_only=${lowQualityOnly ? "yes" : "no"} zero_accepted_streak=${zeroAcceptedStreak} query=${query}`
       );
 
-      if (disabled) {
+      if (exhaustedWinningQuery) {
+        logger.warn(`temporarily exhausted winning query: inserted_streak=${insertedStreak} query=${query}`);
+      } else if (disabled) {
         logger.warn(`low-yield query: low_quality_streak=${lowQualityStreak} zero_accepted_streak=${zeroAcceptedStreak} query=${query}`);
       }
     }

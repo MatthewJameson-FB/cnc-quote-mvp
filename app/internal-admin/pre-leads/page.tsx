@@ -2,6 +2,7 @@ import { requireAdminUser } from '@/lib/admin-auth'
 import { type ThreadContextSummary } from '@/lib/prelead-thread-context'
 import { normalizePreLeadStatus, preLeadStatusLabels, type PreLeadStatus } from '@/lib/pre-lead-statuses'
 import { createSupabaseAdminClient } from '@/lib/supabase-admin'
+import { classifyLeadType, type PreleadLeadType } from '@/lib/prelead-lead-type'
 import ConfirmActionButton from '../ConfirmActionButton'
 import CopyReplyButton from '../CopyReplyButton'
 import DismissLeadButton from './DismissLeadButton'
@@ -57,6 +58,7 @@ type PreLeadRecord = {
   suggested_reply: string
   manual_notes: string | null
   post_text: string | null
+  lead_type: PreleadLeadType | null
   search_context: string | null
   image_url: string | null
   contact_email: string | null
@@ -116,6 +118,8 @@ function LeadCard({
             <Badge status={status} />
             {converted ? <span className="inline-flex rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-900 ring-1 ring-violet-200">Converted</span> : null}
             {estimateAccepted ? <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200">Estimate accepted</span> : null}
+            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800 ring-1 ring-slate-200">{lead.lead_type ?? classifyLeadType(preview)}</span>
+            {(lead.lead_type ?? classifyLeadType(preview)) === 'group_buy_candidate' ? <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-200">GROUP BUY</span> : null}
             <span className="text-sm text-slate-500">{formatDate(lead.created_at)}</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900">{lead.title}</h2>
@@ -126,8 +130,8 @@ function LeadCard({
         </div>
 
         <div className="space-y-2 text-right">
-          <p className="text-3xl font-bold text-slate-900">{lead.value_score ?? 0}</p>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Value score</p>
+          <p className="text-3xl font-bold text-slate-900">{lead.lead_score}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Lead score</p>
         </div>
       </div>
 
@@ -155,6 +159,14 @@ function LeadCard({
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Location signal</p>
           <p className="mt-1 text-slate-700">{lead.location_signal || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Value tier</p>
+          <p className="mt-1 text-slate-700">{lead.value_tier || 'low'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lead type</p>
+          <p className="mt-1 text-slate-700">{lead.lead_type ?? classifyLeadType(preview)}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Value reason</p>

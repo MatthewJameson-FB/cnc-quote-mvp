@@ -21,10 +21,13 @@ type QueryHealthEntry = {
   disabled?: boolean;
   zeroAcceptedStreak?: number;
   lowQualityStreak?: number;
+  insertedStreak?: number;
+  hasWinningRun?: boolean;
+  temporarilyExhaustedUntil?: string | null;
 };
 
 type QueryHealthState = {
-  version: 1;
+  version: 1 | 2;
   queries: Record<string, QueryHealthEntry>;
 };
 
@@ -72,6 +75,7 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+
 function getDaySeed() {
   const today = new Date();
   return Math.floor(today.getTime() / 86400000);
@@ -98,8 +102,8 @@ async function saveJson(filePath: string, value: unknown) {
 
 async function loadQueryHealthState(): Promise<QueryHealthState> {
   const parsed = await loadJson<QueryHealthState | null>(QUERY_HEALTH_PATH, null);
-  if (!parsed || parsed.version !== 1 || !parsed.queries || typeof parsed.queries !== "object") {
-    return { version: 1, queries: {} };
+  if (!parsed || (parsed.version !== 1 && parsed.version !== 2) || !parsed.queries || typeof parsed.queries !== "object") {
+    return { version: 2, queries: {} };
   }
 
   return parsed;
@@ -137,15 +141,19 @@ async function getDiscoveryQueries(): Promise<{ queries: DiscoveryQueryPlan[]; r
   const runBudget = Math.min(planned.length, dailyTarget, remainingBudget);
   const quotaExhausted = remainingBudget <= 0;
 
+  const now = Date.now();
   const budgeted = planned.map((entry) => {
     const health = queryHealth.queries[entry.query];
+    const temporarilyExhausted = Boolean(health?.temporarilyExhaustedUntil && Date.parse(health.temporarilyExhaustedUntil) > now);
     return {
       ...entry,
       disabled: Boolean(health?.disabled || (health?.zeroAcceptedStreak ?? 0) >= 3 || (health?.lowQualityStreak ?? 0) >= 3),
+      temporarilyExhausted,
+      hasWinningRun: Boolean(health?.hasWinningRun),
     };
   });
 
-  const active = budgeted.filter((entry) => !entry.disabled);
+  const active = budgeted.filter((entry) => !entry.temporarilyExhausted && !entry.disabled);
   const disabledSkipped = budgeted.length - active.length;
 
   return {

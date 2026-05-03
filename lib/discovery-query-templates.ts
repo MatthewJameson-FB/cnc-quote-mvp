@@ -18,27 +18,33 @@ export const DISCOVERY_NEGATIVE_FILTERS = [
   '-sensor',
   '-ECU',
   '-wiring',
+  '-diagnostics',
   '-"won\'t start"',
   '-"buying advice"',
   '-"how much"',
   '-"insurance"',
   '-"write off"',
+  '-performance',
 ] as const;
 
 export const DISCOVERY_USER_PHRASES = [
-  'broken trim car',
-  'broken interior trim car',
-  'broken plastic trim car',
-  'missing trim clip car',
-  'broken trim clip car',
-  'interior trim broken car',
-  'mx5 broken trim',
-  'bmw e46 broken trim',
+  'clip broke',
+  'tab snapped',
+  'plastic broke',
+  'trim broke',
+  'missing piece',
+  'can\'t find this part',
+  'what is this part called',
+  'need a bracket',
+  'custom mount',
+  'adapter for',
+  'does anyone have an STL',
+  'need a CAD file',
 ] as const;
 
-export const DISCOVERY_CAR_CONTEXTS = ['car', 'car interior', 'car trim'] as const;
+export const DISCOVERY_CAR_CONTEXTS = ['car', 'car interior', 'car trim', 'automotive'] as const;
 
-export const DISCOVERY_PRIORITY_MODELS = ['mx5', 'bmw e46', 'vw golf mk5', 'land rover defender'] as const;
+export const DISCOVERY_PRIORITY_MODELS = ['mx5', 'bmw e46', 'vw golf mk4', 'land rover defender'] as const;
 
 const NEGATIVE_SUFFIX = DISCOVERY_NEGATIVE_FILTERS.join(' ');
 
@@ -50,33 +56,85 @@ function appendNegativeFilters(query: string) {
   return cleanText(`${query} ${NEGATIVE_SUFFIX}`).replace(/\s+/g, ' ');
 }
 
+function dedupeWords(query: string) {
+  const seen = new Set<string>();
+  return cleanText(query)
+    .split(/\s+/)
+    .filter((token) => {
+      const normalized = token.toLowerCase();
+      if (!normalized) return false;
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    })
+    .join(' ');
+}
+
+function makeQuery(parts: string[]) {
+  return appendNegativeFilters(dedupeWords(`site:reddit.com ${parts.join(' ')}`));
+}
+
+function closeSemanticVariants(seed: string) {
+  const phrases = [seed];
+  const lower = seed.toLowerCase();
+
+  if (/trim|clip|tab|plastic/.test(lower)) {
+    phrases.push('broken interior trim car', 'broken door trim car', 'cracked dashboard trim car', 'broken plastic part car');
+  }
+
+  if (/bracket|mount|adapter/.test(lower)) {
+    phrases.push('custom bracket car', 'need a bracket car', 'custom mount car', 'adapter for car part');
+  }
+
+  if (/stl|cad|3d/.test(lower)) {
+    phrases.push('looking for STL car', 'need a CAD file car', '3D print this part car', 'can someone model this car part');
+  }
+
+  if (/cannot find|can't find|missing piece/.test(lower)) {
+    phrases.push("can't find this part car", 'missing car trim piece', 'unavailable car replacement part');
+  }
+
+  return [...new Set(phrases.map((value) => dedupeWords(value)))].filter(Boolean).slice(0, 8);
+}
+
 export function buildDiscoverySearchTemplates(): { core: DiscoveryQueryTemplate[]; rotating: DiscoveryQueryTemplate[] } {
   const core = [
-    appendNegativeFilters('site:reddit.com broken trim car'),
-    appendNegativeFilters('site:reddit.com broken interior trim car'),
-    appendNegativeFilters('site:reddit.com broken plastic trim car'),
-    appendNegativeFilters('site:reddit.com missing trim clip car'),
-    appendNegativeFilters('site:reddit.com broken trim clip car'),
-    appendNegativeFilters('site:reddit.com interior trim broken car'),
-    appendNegativeFilters('site:reddit.com mx5 broken trim'),
-    appendNegativeFilters('site:reddit.com bmw e46 broken trim'),
+    makeQuery(['"clip broke"', 'car']),
+    makeQuery(['"tab snapped"', 'car interior']),
+    makeQuery(['"plastic broke"', 'trim', 'car']),
+    makeQuery(['"missing piece"', 'car trim']),
+    makeQuery(["can't find this part", 'car']),
+    makeQuery(['"what is this part called"', 'car']),
+    makeQuery(['"need a bracket"', 'car']),
+    makeQuery(['"does anyone have an STL"', 'car']),
+    makeQuery(['"need a CAD file"', 'car']),
+    makeQuery(['"3D print this part"', 'car trim']),
   ].map((query) => ({ kind: 'core' as const, recency: 'week' as const, query }));
 
-  const rotating: DiscoveryQueryTemplate[] = [];
+  const rotating = [
+    makeQuery(['"custom mount"', 'car']),
+    makeQuery(['"adapter for"', 'car']),
+    makeQuery(['"does anyone have an STL"', 'car interior']),
+    makeQuery(['"need a CAD file"', 'automotive']),
+    makeQuery(['"custom bracket"', 'car']),
+    makeQuery(['"missing piece"', 'car interior']),
+  ].map((query) => ({ kind: 'rotating' as const, recency: 'month' as const, query }));
 
   return { core, rotating };
 }
 
 export function buildRedditSearchQueries() {
   const queries = [
-    'broken trim car',
-    'broken interior trim car',
-    'broken plastic trim car',
-    'missing trim clip car',
-    'broken trim clip car',
-    'interior trim broken car',
-    'mx5 broken trim',
-    'bmw e46 broken trim',
+    'clip broke car',
+    'tab snapped car',
+    'plastic broke trim car',
+    'missing piece car interior',
+    "can't find this part car",
+    'what is this part called car',
+    'need a bracket car',
+    'custom mount car',
+    'does anyone have an STL car',
+    'need a CAD file car',
   ];
 
   return [...new Set(queries.map((query) => query.trim()).filter(Boolean))].slice(0, 12);
@@ -120,30 +178,20 @@ function buildPhraseSeeds(winningPatterns: { query: string }[]) {
 }
 
 function buildBroadQuery(parts: string[]) {
-  return appendNegativeFilters(`site:reddit.com ${parts.join(' ')}`);
+  return appendNegativeFilters(dedupeWords(`site:reddit.com ${parts.join(' ')}`));
 }
 
 export function buildRecommendedDiscoveryQueries(winningPatterns: { query: string; group_name?: string }[]): DiscoveryQueryRecommendation[] {
   const seeds = buildPhraseSeeds(winningPatterns);
   const recommendations = new Map<string, string>();
 
-  for (const phrase of DISCOVERY_USER_PHRASES) {
-    for (const context of DISCOVERY_CAR_CONTEXTS) {
-      const query = buildBroadQuery([phrase, context]);
-      recommendations.set(query, `Broad natural-language phrasing: ${phrase} with ${context}.`);
+  for (const seed of seeds) {
+    for (const variant of closeSemanticVariants(seed)) {
+      const query = buildBroadQuery([variant]);
+      recommendations.set(query, `Close semantic variant of winning phrasing: ${variant}.`);
       if (recommendations.size >= 8) break;
     }
     if (recommendations.size >= 8) break;
-  }
-
-  for (const seed of seeds) {
-    for (const model of DISCOVERY_PRIORITY_MODELS) {
-      const context = seed.includes(' ') ? seed : `${seed} part`;
-      const query = buildBroadQuery([model, context]);
-      recommendations.set(query, `Derived from winning phrasing ${seed} and focused on priority model ${model}.`);
-      if (recommendations.size >= 10) break;
-    }
-    if (recommendations.size >= 10) break;
   }
 
   if (recommendations.size < 8) {

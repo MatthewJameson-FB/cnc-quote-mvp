@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireAdminUser } from '@/lib/admin-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase-admin'
 import { scoreLeadValue } from '@/lib/lead-value'
+import { classifyLeadType } from '@/lib/prelead-lead-type'
 import { normalizeQuoteVisibilityStatus } from '@/lib/quote-visibility'
 import DismissLeadButton from '@/app/internal-admin/pre-leads/DismissLeadButton'
 import { setPreLeadContacted } from '@/app/internal-admin/pre-leads/actions'
@@ -16,6 +17,7 @@ type DashboardLead = {
   title: string
   snippet: string
   value_tier: 'low' | 'medium' | 'high' | null
+  lead_score: number | null
 }
 
 type DashboardQuote = {
@@ -51,7 +53,6 @@ function deriveQuoteTier(quote: DashboardQuote) {
 }
 
 function LeadItem({ lead }: { lead: DashboardLead }) {
-  const valueTier = lead.value_tier ?? 'low'
   const viewHref = lead.source_url ?? '/admin/preleads'
 
   return (
@@ -60,7 +61,9 @@ function LeadItem({ lead }: { lead: DashboardLead }) {
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <span>{lead.source}</span>
           <span>•</span>
-          <span>{valueTier}</span>
+          <span>{classifyLeadType(`${lead.title} ${lead.snippet}`)}</span>
+          <span>•</span>
+          <span>{lead.lead_score ?? 0}</span>
           <span>•</span>
           <span>{formatTime(lead.created_at)}</span>
         </div>
@@ -129,7 +132,7 @@ export default async function AdminPage() {
   const [{ data: topLeads, error: topLeadsError }, { data: inboundLeads, error: inboundError }, { data: quotes, error: quotesError }] = await Promise.all([
     supabase
       .from('pre_leads')
-      .select('id, created_at, source, source_url, title, snippet, value_tier, status, contacted_at')
+      .select('id, created_at, source, source_url, title, snippet, value_tier, lead_score, status, contacted_at')
       .eq('value_tier', 'high')
       .eq('status', 'active')
       .is('contacted_at', null)
@@ -137,7 +140,7 @@ export default async function AdminPage() {
       .limit(5),
     supabase
       .from('pre_leads')
-      .select('id, created_at, source, source_url, title, snippet, value_tier, status')
+      .select('id, created_at, source, source_url, title, snippet, value_tier, lead_score, status')
       .eq('source', 'inbound')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
