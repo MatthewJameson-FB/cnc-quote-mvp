@@ -27,19 +27,18 @@ export const DISCOVERY_NEGATIVE_FILTERS = [
 
 export const DISCOVERY_USER_PHRASES = [
   'broken part',
-  'this broke',
-  "can't find this part",
-  'what is this part called',
-  'anyone know where to get this part',
-  'small plastic part broke',
+  'broke plastic',
+  "can't find part",
+  'missing part',
+  'broken trim',
   'missing clip',
+  'plastic broke',
   'part snapped',
-  'need replacement for this',
 ] as const;
 
-export const DISCOVERY_CAR_CONTEXTS = ['car', 'car part', 'car interior', 'car trim', 'interior trim'] as const;
+export const DISCOVERY_CAR_CONTEXTS = ['car', 'car interior', 'car trim'] as const;
 
-export const DISCOVERY_PRIORITY_MODELS = ['mx5', 'bmw e46', 'bmw e90', 'vw golf mk4', 'vw golf mk5', 'land rover defender'] as const;
+export const DISCOVERY_PRIORITY_MODELS = ['mx5', 'bmw e46', 'vw golf mk5', 'land rover defender'] as const;
 
 const NEGATIVE_SUFFIX = DISCOVERY_NEGATIVE_FILTERS.join(' ');
 
@@ -51,27 +50,20 @@ function appendNegativeFilters(query: string) {
   return cleanText(`${query} ${NEGATIVE_SUFFIX}`).replace(/\s+/g, ' ');
 }
 
-function quote(term: string) {
-  return `"${term.replace(/"/g, '')}"`;
-}
-
-function pickVariant<T>(variants: readonly T[]) {
-  return variants[Math.floor(Date.now() / 86400000) % variants.length];
-}
-
-function modelVariantQuery(model: string) {
-  return appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')} ${quote(model)}`);
+function modelVariantQuery(model: string, phrase: string) {
+  return appendNegativeFilters(`site:reddit.com ${model} ${phrase}`);
 }
 
 export function buildDiscoverySearchTemplates(): { core: DiscoveryQueryTemplate[]; rotating: DiscoveryQueryTemplate[] } {
-  const rotatingModels = [pickVariant(['bmw e46', 'bmw e90'] as const), pickVariant(['vw golf mk4', 'vw golf mk5'] as const)];
-
   const core = [
-    appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')}`),
-    modelVariantQuery('mx5'),
-    modelVariantQuery(rotatingModels[0]),
-    modelVariantQuery(rotatingModels[1]),
-    modelVariantQuery('land rover defender'),
+    appendNegativeFilters('site:reddit.com broken part car'),
+    appendNegativeFilters('site:reddit.com broke plastic car'),
+    appendNegativeFilters('site:reddit.com missing clip car interior'),
+    appendNegativeFilters('site:reddit.com can\'t find part car'),
+    appendNegativeFilters('site:reddit.com broken trim car'),
+    modelVariantQuery('mx5', 'broken part'),
+    modelVariantQuery('bmw e46', 'broken part'),
+    modelVariantQuery('vw golf mk5', 'broken trim'),
   ].map((query) => ({ kind: 'core' as const, recency: 'week' as const, query }));
 
   const rotating: DiscoveryQueryTemplate[] = [];
@@ -81,11 +73,15 @@ export function buildDiscoverySearchTemplates(): { core: DiscoveryQueryTemplate[
 
 export function buildRedditSearchQueries() {
   const queries = [
-    'broken part replacement',
-    'broken part replacement mx5',
-    `broken part replacement ${pickVariant(['bmw e46', 'bmw e90'] as const)}`,
-    `broken part replacement ${pickVariant(['vw golf mk4', 'vw golf mk5'] as const)}`,
-    'broken part replacement land rover defender',
+    'broken part car',
+    'broke plastic car',
+    'missing clip car interior',
+    "can't find part car",
+    'broken trim car',
+    'mx5 broken part',
+    'bmw e46 broken part',
+    'vw golf mk5 broken trim',
+    'land rover defender broken part',
   ];
 
   return [...new Set(queries.map((query) => query.trim()).filter(Boolean))].slice(0, 12);
@@ -128,10 +124,8 @@ function buildPhraseSeeds(winningPatterns: { query: string }[]) {
   return uniqueNonEmpty(filtered).slice(0, 6);
 }
 
-function buildNaturalQuery(basePhrase: string, context: string) {
-  const phrase = quote(basePhrase);
-  const contextText = context.includes(' ') ? quote(context) : context;
-  return appendNegativeFilters(`site:reddit.com ${phrase} ${contextText}`);
+function buildBroadQuery(parts: string[]) {
+  return appendNegativeFilters(`site:reddit.com ${parts.join(' ')}`);
 }
 
 export function buildRecommendedDiscoveryQueries(winningPatterns: { query: string; group_name?: string }[]): DiscoveryQueryRecommendation[] {
@@ -140,8 +134,8 @@ export function buildRecommendedDiscoveryQueries(winningPatterns: { query: strin
 
   for (const phrase of DISCOVERY_USER_PHRASES) {
     for (const context of DISCOVERY_CAR_CONTEXTS) {
-      const query = buildNaturalQuery(phrase, context);
-      recommendations.set(query, `Natural-language phrasing: "${phrase}" with ${context}.`);
+      const query = buildBroadQuery([phrase, context]);
+      recommendations.set(query, `Broad natural-language phrasing: ${phrase} with ${context}.`);
       if (recommendations.size >= 8) break;
     }
     if (recommendations.size >= 8) break;
@@ -150,21 +144,21 @@ export function buildRecommendedDiscoveryQueries(winningPatterns: { query: strin
   for (const seed of seeds) {
     for (const model of DISCOVERY_PRIORITY_MODELS) {
       const context = seed.includes(' ') ? seed : `${seed} part`;
-      const query = buildNaturalQuery(context, model);
-      recommendations.set(query, `Derived from winning phrasing "${seed}" and focused on priority model ${model}.`);
-      if (recommendations.size >= 12) break;
+      const query = buildBroadQuery([model, context]);
+      recommendations.set(query, `Derived from winning phrasing ${seed} and focused on priority model ${model}.`);
+      if (recommendations.size >= 10) break;
     }
-    if (recommendations.size >= 12) break;
+    if (recommendations.size >= 10) break;
   }
 
-  if (recommendations.size < 10) {
+  if (recommendations.size < 8) {
     for (const model of DISCOVERY_PRIORITY_MODELS) {
       for (const phrase of DISCOVERY_USER_PHRASES) {
-        const query = appendNegativeFilters(`site:reddit.com ${quote(model)} ${quote(phrase)}`);
-        recommendations.set(query, `Priority model ${model} with natural phrasing "${phrase}".`);
-        if (recommendations.size >= 10) break;
+        const query = buildBroadQuery([model, phrase]);
+        recommendations.set(query, `Priority model ${model} with natural phrasing ${phrase}.`);
+        if (recommendations.size >= 8) break;
       }
-      if (recommendations.size >= 10) break;
+      if (recommendations.size >= 8) break;
     }
   }
 
