@@ -7,7 +7,7 @@ import {
   startDiscoveryRun,
   type DiscoveryTriggerType,
 } from "@/lib/discovery-runs";
-
+import { generateDiscoveryOptimisationReport } from "@/lib/discovery-optimisation";
 
 function extractSecret(req: Request) {
   const authorization = req.headers.get("authorization") ?? "";
@@ -61,6 +61,15 @@ export async function runDiscoveryPreleadWorkflow(triggerType: DiscoveryTriggerT
       result,
       errorMessage: null,
     });
+
+    if (runId) {
+      const optimisation = await generateDiscoveryOptimisationReport(runId);
+      if (optimisation.success) {
+        console.log(`[discovery] optimisation report saved${optimisation.report_id ? ` id=${optimisation.report_id}` : ""}`);
+      } else if (optimisation.error) {
+        console.warn(`[discovery] optimisation report skipped: ${optimisation.error.message}`);
+      }
+    }
 
     return {
       success: true,
