@@ -135,20 +135,23 @@ function looksSolvedOrShowcase(candidate: AiPreleadCandidateInput) {
 }
 
 function applyGuardrails(candidate: AiPreleadCandidateInput, classification: AiPreleadClassification): AiPreleadClassification {
-  if (looksSolvedOrShowcase(candidate)) {
+  const solvedOrShowcase = looksSolvedOrShowcase(candidate);
+  const buyingIntent = hasPositiveBuyingIntent(candidate);
+
+  if (solvedOrShowcase && !buyingIntent) {
     return {
       ...classification,
       is_lead: false,
       manufacturable: false,
       confidence: Math.min(classification.confidence, 0.2),
-      reason: "Rejected: solved/showcase post",
-      reject_reason: "showcase_or_solved_post",
+      reason: "Rejected: solved/showcase post with no unresolved need",
+      reject_reason: "solved_or_showcase_no_need",
       should_reply: false,
       suggested_reply: classification.suggested_reply,
     };
   }
 
-  if (!hasPositiveBuyingIntent(candidate)) {
+  if (!buyingIntent) {
     return {
       ...classification,
       is_lead: false,

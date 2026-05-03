@@ -208,6 +208,46 @@
       "zeroAcceptedStreak": 1,
       "lastAcceptedCount": 0,
       "disabled": false
+    },
+    "site:reddit.com broken trim car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\" -\"how much\" -\"insurance\" -\"write off\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T10:55:49.191Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com broken interior trim car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\" -\"how much\" -\"insurance\" -\"write off\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T10:55:49.191Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com broken plastic trim car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\" -\"how much\" -\"insurance\" -\"write off\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T10:55:49.191Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com missing trim clip car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\" -\"how much\" -\"insurance\" -\"write off\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T10:55:49.191Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com broken trim clip car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\" -\"how much\" -\"insurance\" -\"write off\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T10:55:49.191Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
     }
   }
 }

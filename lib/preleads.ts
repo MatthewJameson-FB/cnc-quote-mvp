@@ -331,6 +331,8 @@ const explicitIntentBoostPatterns = [
   /\bhow do i fix\b/i,
   /\blooking for\b/i,
   /\bwhere can i get\b/i,
+  /\banyone know where\b/i,
+  /\bdoes anyone sell\b/i,
   /\bwho can make\b/i,
   /\bneed replacement\b/i,
   /\bmissing piece\b/i,
@@ -340,22 +342,25 @@ const explicitIntentBoostPatterns = [
   /\breplacement part not available\b/i,
   /\bwhat is this (?:piece|part) called\b/i,
   /\banyone know where to get this\b/i,
+  /\bdoes anyone know where to get this\b/i,
 ];
 const completionSignalPatterns = [
   /\bfixed\b/i,
   /\bsolved\b/i,
   /\bupdated\b/i,
-  /\bi did\b/i,
-  /\bi replaced\b/i,
-  /\bi wrapped\b/i,
-  /\bi installed\b/i,
+  /\breplaced\b/i,
+  /\bwrapped\b/i,
+  /\binstalled\b/i,
   /\bfinished\b/i,
-  /\bhappy with this\b/i,
-  /\bupdate\b/i,
+  /\bdone\b/i,
+  /\bhappy with(?: this)?\b/i,
   /\bbefore and after\b/i,
   /\bfinally done\b/i,
   /\binterior update\b/i,
   /\bproject complete\b/i,
+  /\bmod(?:ded|ification)?\b/i,
+  /\bupgrade(?:d)?\b/i,
+  /\blook what i did\b/i,
 ];
 const stlOnlyReplySuppressionPatterns = [
   /\blooking for (?:an? )?(?:stl|cad|file)\b/i,
@@ -547,7 +552,7 @@ type PreAiHardRejectReason =
   | "outside_uk_strong"
   | "low_quality_signal"
   | "curiosity_practice"
-  | "showcase_or_solved_post"
+  | "solved_or_showcase_no_need"
   | "missing_buying_intent";
 
 type FinalRejectionReason =
@@ -558,7 +563,7 @@ type FinalRejectionReason =
   | "outside_uk_strong"
   | "duplicate"
   | "hard_reject"
-  | "showcase_or_solved_post";
+  | "solved_or_showcase_no_need";
 
 type PreleadIntent = {
   intent_type: PreleadIntentType;
@@ -887,7 +892,7 @@ function hasStrictLeadQualitySignal(lead: Pick<Prelead, "title" | "snippet">, in
   const hasRealWorldObjectSignal = hasAnyPattern(text, realWorldObjectBoostPatterns);
   const hasExplicitIntentSignal = hasAnyPattern(text, explicitIntentBoostPatterns) || hasDirectRequestNeedSignal(intent);
 
-  if (looksLikeShowcaseOrOwnerPost(text)) {
+  if (isShowcaseNoNeed(text, intent)) {
     return false;
   }
 
@@ -2299,7 +2304,7 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
-  if (looksLikeShowcaseOrOwnerPost(text)) return "showcase_or_solved_post";
+  if (isShowcaseNoNeed(text, intent)) return "solved_or_showcase_no_need";
   if (!hasPositiveBuyingIntentSignal(lead, intent)) return "missing_buying_intent";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
@@ -2327,7 +2332,7 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
-  if (looksLikeShowcaseOrOwnerPost(text)) return "showcase_or_solved_post";
+  if (isShowcaseNoNeed(text, intent)) return "solved_or_showcase_no_need";
   if (!hasPositiveBuyingIntentSignal(lead, intent)) return "missing_buying_intent";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
@@ -2382,7 +2387,11 @@ function hasBuyingOrHelpIntent(text: string, intent: PreleadIntent) {
 }
 
 function hasUnresolvedNeed(text: string, intent: PreleadIntent) {
-  return hasBuyingOrHelpIntent(text, intent) && !looksLikeShowcaseOrOwnerPost(text);
+  return hasBuyingOrHelpIntent(text, intent);
+}
+
+function isShowcaseNoNeed(text: string, intent: PreleadIntent) {
+  return looksLikeShowcaseOrOwnerPost(text) && !hasBuyingOrHelpIntent(text, intent);
 }
 
 function getQualificationFlags(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
@@ -2621,7 +2630,7 @@ function getFinalAiRejectionReason(
   if (!classification.is_lead) return "hard_reject";
   if (classification.confidence < minConfidence) return "ai_confidence_too_low";
   if (looksLikeNonManufacturableRepairJob(lead)) return "hard_reject";
-  if (looksLikeShowcaseOrOwnerPost(text)) return "showcase_or_solved_post";
+  if (isShowcaseNoNeed(text, intent)) return "solved_or_showcase_no_need";
   if (!hasPositiveBuyingIntentSignal(lead, intent)) return "missing_buying_intent";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
@@ -3268,7 +3277,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     outside_uk_strong: [],
     low_quality_signal: [],
     curiosity_practice: [],
-    showcase_or_solved_post: [],
+    solved_or_showcase_no_need: [],
     missing_buying_intent: [],
   };
   const preAiRejectedReasonCounts = new Map<string, number>();

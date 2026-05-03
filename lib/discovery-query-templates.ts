@@ -26,14 +26,14 @@ export const DISCOVERY_NEGATIVE_FILTERS = [
 ] as const;
 
 export const DISCOVERY_USER_PHRASES = [
-  'broken part',
-  'broke plastic',
-  "can't find part",
-  'missing part',
-  'broken trim',
-  'missing clip',
-  'plastic broke',
-  'part snapped',
+  'broken trim car',
+  'broken interior trim car',
+  'broken plastic trim car',
+  'missing trim clip car',
+  'broken trim clip car',
+  'interior trim broken car',
+  'mx5 broken trim',
+  'bmw e46 broken trim',
 ] as const;
 
 export const DISCOVERY_CAR_CONTEXTS = ['car', 'car interior', 'car trim'] as const;
@@ -50,20 +50,16 @@ function appendNegativeFilters(query: string) {
   return cleanText(`${query} ${NEGATIVE_SUFFIX}`).replace(/\s+/g, ' ');
 }
 
-function modelVariantQuery(model: string, phrase: string) {
-  return appendNegativeFilters(`site:reddit.com ${model} ${phrase}`);
-}
-
 export function buildDiscoverySearchTemplates(): { core: DiscoveryQueryTemplate[]; rotating: DiscoveryQueryTemplate[] } {
   const core = [
-    appendNegativeFilters('site:reddit.com broken part car'),
-    appendNegativeFilters('site:reddit.com broke plastic car'),
-    appendNegativeFilters('site:reddit.com missing clip car interior'),
-    appendNegativeFilters('site:reddit.com can\'t find part car'),
     appendNegativeFilters('site:reddit.com broken trim car'),
-    modelVariantQuery('mx5', 'broken part'),
-    modelVariantQuery('bmw e46', 'broken part'),
-    modelVariantQuery('vw golf mk5', 'broken trim'),
+    appendNegativeFilters('site:reddit.com broken interior trim car'),
+    appendNegativeFilters('site:reddit.com broken plastic trim car'),
+    appendNegativeFilters('site:reddit.com missing trim clip car'),
+    appendNegativeFilters('site:reddit.com broken trim clip car'),
+    appendNegativeFilters('site:reddit.com interior trim broken car'),
+    appendNegativeFilters('site:reddit.com mx5 broken trim'),
+    appendNegativeFilters('site:reddit.com bmw e46 broken trim'),
   ].map((query) => ({ kind: 'core' as const, recency: 'week' as const, query }));
 
   const rotating: DiscoveryQueryTemplate[] = [];
@@ -73,15 +69,14 @@ export function buildDiscoverySearchTemplates(): { core: DiscoveryQueryTemplate[
 
 export function buildRedditSearchQueries() {
   const queries = [
-    'broken part car',
-    'broke plastic car',
-    'missing clip car interior',
-    "can't find part car",
     'broken trim car',
-    'mx5 broken part',
-    'bmw e46 broken part',
-    'vw golf mk5 broken trim',
-    'land rover defender broken part',
+    'broken interior trim car',
+    'broken plastic trim car',
+    'missing trim clip car',
+    'broken trim clip car',
+    'interior trim broken car',
+    'mx5 broken trim',
+    'bmw e46 broken trim',
   ];
 
   return [...new Set(queries.map((query) => query.trim()).filter(Boolean))].slice(0, 12);

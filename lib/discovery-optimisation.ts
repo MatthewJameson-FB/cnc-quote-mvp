@@ -225,7 +225,7 @@ function buildWinningPatterns(aggregated: AggregatedQueryPerformance[]) {
 
 function buildWeakQueries(aggregated: AggregatedQueryPerformance[]) {
   return aggregated
-    .filter((item) => (item.total_runs >= 3 && item.total_accepted === 0) || item.low_quality_rate >= 0.6)
+    .filter((item) => item.total_inserted === 0 && ((item.total_runs >= 3 && item.total_accepted === 0) || item.low_quality_rate >= 0.6))
     .slice(0, 10)
     .map((item) => ({
       query: item.query,
@@ -241,7 +241,7 @@ function buildWeakQueries(aggregated: AggregatedQueryPerformance[]) {
 
 function buildDuplicateHeavyQueries(aggregated: AggregatedQueryPerformance[]) {
   return aggregated
-    .filter((item) => item.duplicate_rate >= 0.5 || (item.total_duplicates >= 3 && item.total_inserted === 0))
+    .filter((item) => item.total_inserted === 0 && (item.duplicate_rate >= 0.5 || item.total_duplicates >= 3))
     .slice(0, 10)
     .map((item) => ({
       query: item.query,
@@ -250,7 +250,7 @@ function buildDuplicateHeavyQueries(aggregated: AggregatedQueryPerformance[]) {
       duplicate_rate: item.duplicate_rate,
       total_inserted: item.total_inserted,
       total_fetched: item.total_fetched,
-      reason: item.total_inserted === 0 ? "duplicate-heavy and no inserts" : "high duplicate rate",
+      reason: item.total_duplicates >= 3 ? "duplicate-heavy and no inserts" : "high duplicate rate",
     }));
 }
 
