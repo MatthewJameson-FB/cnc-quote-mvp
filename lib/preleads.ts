@@ -195,17 +195,16 @@ const BUILTIN_SUBREDDITS = [
   "AskEngineers",
 ];
 const BUILTIN_QUERIES = [
-  "custom part",
-  "quote",
-  "machinist",
-  "aluminium bracket",
-  "small batch",
-  "CNC",
-  "machine shop",
-  "billet",
-  "replacement part",
-  "STEP file",
-  "DXF",
+  'broken part replacement',
+  'discontinued part replacement',
+  'stl file paid',
+  'need a 3d model broken part',
+  'can someone make this',
+  'need this 3d printed',
+  'one off machined part',
+  'machine shop quote',
+  'custom bracket quote',
+  'i have a cad file quote',
 ];
 const DEFAULT_MAX_RESULTS = 30;
 const REDDIT_TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token";

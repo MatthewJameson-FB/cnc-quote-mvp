@@ -46,6 +46,13 @@ type QuoteRecord = {
   total_estimate_max: number | null;
   estimate_confidence: string | null;
   quote_message: string | null;
+  research_summary: string | null;
+  possible_part_numbers: string | null;
+  useful_links: Array<{ label: string; href: string }> | null;
+  missing_requirements: string | null;
+  suggested_next_action: string | null;
+  research_status: string | null;
+  researched_at: string | null;
 };
 
 type QuoteRecordWithAssets = QuoteRecord & {
@@ -64,6 +71,27 @@ function extractCommaNoteList(notes: string | null | undefined, key: string) {
   const raw = extractNoteValue(notes, key);
   if (!raw) return [];
   return raw.split(",").map((value) => value.trim()).filter(Boolean);
+}
+
+function extractJsonNoteList(notes: string | null | undefined, key: string) {
+  const raw = extractNoteValue(notes, key);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+
+    return parsed.filter((item): item is { label: string; href: string } => {
+      return (
+        typeof item === "object" &&
+        item !== null &&
+        typeof item.label === "string" &&
+        typeof item.href === "string"
+      );
+    });
+  } catch {
+    return null;
+  }
 }
 
 async function loadQuote(id: string): Promise<QuoteRecordWithAssets | null> {
@@ -103,6 +131,7 @@ async function loadQuote(id: string): Promise<QuoteRecordWithAssets | null> {
   const notesModelSpecifics = extractNoteValue(quote.notes, "model_specifics");
   const notesIssueType = extractNoteValue(quote.notes, "issue_type");
   const notesSizeEstimate = extractNoteValue(quote.notes, "size_estimate");
+  const notesUsefulLinks = extractJsonNoteList(quote.notes, "useful_links");
 
   const normalizedQuote = {
     ...quote,
@@ -113,6 +142,13 @@ async function loadQuote(id: string): Promise<QuoteRecordWithAssets | null> {
     model_specifics: quote.model_specifics || notesModelSpecifics,
     issue_type: quote.issue_type || notesIssueType,
     size_estimate: quote.size_estimate || notesSizeEstimate,
+    research_summary: quote.research_summary || extractNoteValue(quote.notes, "research_summary"),
+    possible_part_numbers: quote.possible_part_numbers || extractNoteValue(quote.notes, "possible_part_numbers"),
+    useful_links: quote.useful_links || notesUsefulLinks,
+    missing_requirements: quote.missing_requirements || extractNoteValue(quote.notes, "missing_requirements"),
+    suggested_next_action: quote.suggested_next_action || extractNoteValue(quote.notes, "suggested_next_action"),
+    research_status: quote.research_status || extractNoteValue(quote.notes, "research_status"),
+    researched_at: quote.researched_at || extractNoteValue(quote.notes, "researched_at"),
   };
 
   return {

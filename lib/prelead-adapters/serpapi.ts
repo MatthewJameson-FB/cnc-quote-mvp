@@ -15,21 +15,21 @@ type DiscoveryQuery = {
 };
 
 const CORE_QUERIES: DiscoveryQuery[] = [
-  { kind: "core", recency: "week", query: 'site:reddit.com "can\'t find" "plastic clip" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "discontinued" "interior trim" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "OEM unavailable" bracket car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "replacement part not available" "classic car" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "no longer available" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "can\'t find" "interior cover" "VW Golf" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com/r/CarTalkUK "3d printed" replacement -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com/r/CarTalkUK "custom part" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com/r/CarTalkUK "machine shop" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "broken part" replacement -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "discontinued part" replacement -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "core", recency: "week", query: 'site:reddit.com "stl file" paid -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
 ];
 
 const ROTATING_QUERIES: DiscoveryQuery[] = [
-  { kind: "rotating", recency: "day", query: 'site:reddit.com "can\'t find" "trim piece" "MX5 NA" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com "where can I get" "dashboard trim" "MX5" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com "discontinued" "retainer clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com "obsolete" "car trim clip" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:mx5oc.co.uk "discontinued" "trim clip" car -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:bimmerforums.com "can\'t find" "trim piece" "BMW E46" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:pistonheads.com "custom bracket" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:mx5oc.co.uk "custom part" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com/r/3Drequests "broken part" paid -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com/r/3Dprinting "replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com "i have a cad file" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
+  { kind: "rotating", recency: "day", query: 'site:reddit.com "one off machined part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
 ];
 
 const MAX_DISCOVERY_QUERIES = 10;

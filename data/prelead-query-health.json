@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "queries": {
+    "site:reddit.com \"can't find\" \"plastic clip\" \"BMW E46\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"discontinued\" \"interior trim\" car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"OEM unavailable\" bracket car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"replacement part not available\" \"classic car\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"no longer available\" \"trim clip\" car -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"can't find\" \"interior cover\" \"VW Golf\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"obsolete\" \"car trim clip\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:27:08.037Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"can someone make this\" \"3d printed\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"need this 3d printed\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"one off machined part\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:mx5oc.co.uk \"custom part\" UK -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 1,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": true,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"I have a CAD file\" \"print\" \"UK\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"STL file\" \"print\" \"UK\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 1,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": true,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"machine shop\" \"one off\" \"UK\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:34:15.152Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"can someone make this\" paid quote -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:37:15.527Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"need this 3d printed\" paid quote -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:37:15.527Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"one off machined part\" quote -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:37:15.527Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"machine shop\" quote uk -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-02T13:37:15.527Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    }
+  }
+}
