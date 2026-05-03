@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { buildDiscoverySearchTemplates, type DiscoveryQueryKind, type DiscoverySearchRecency } from "@/lib/discovery-query-templates";
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
 const ROOT = process.cwd();
@@ -6,31 +7,13 @@ const DATA_DIR = `${ROOT}/data`;
 const QUERY_HEALTH_PATH = `${DATA_DIR}/prelead-query-health.json`;
 const SERPAPI_BUDGET_PATH = `${DATA_DIR}/serpapi-budget.json`;
 
-type SearchRecency = "day" | "week" | "month" | "any";
-
 type DiscoveryQuery = {
   query: string;
-  recency: SearchRecency;
-  kind: "core" | "rotating";
+  recency: DiscoverySearchRecency;
+  kind: DiscoveryQueryKind;
 };
 
-const CORE_QUERIES: DiscoveryQuery[] = [
-  { kind: "core", recency: "week", query: 'site:reddit.com/r/CarTalkUK "3d printed" replacement -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com/r/CarTalkUK "custom part" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com/r/CarTalkUK "machine shop" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "broken part" replacement -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "discontinued part" replacement -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "core", recency: "week", query: 'site:reddit.com "stl file" paid -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-];
-
-const ROTATING_QUERIES: DiscoveryQuery[] = [
-  { kind: "rotating", recency: "day", query: 'site:pistonheads.com "custom bracket" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:mx5oc.co.uk "custom part" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com/r/3Drequests "broken part" paid -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com/r/3Dprinting "replacement part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com "i have a cad file" quote -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-  { kind: "rotating", recency: "day", query: 'site:reddit.com "one off machined part" -engine -gearbox -sensor -ECU -wiring -"won\'t start" -"buying advice"' },
-];
+const { core: CORE_QUERIES, rotating: ROTATING_QUERIES } = buildDiscoverySearchTemplates();
 
 const MAX_DISCOVERY_QUERIES = 10;
 
@@ -142,8 +125,9 @@ async function saveBudgetState(state: BudgetState) {
 
 async function getDiscoveryQueries(): Promise<{ queries: DiscoveryQueryPlan[]; runBudget: number; skippedBudget: number; quotaExhausted: boolean }> {
   const rotatingSlots = Math.max(0, MAX_DISCOVERY_QUERIES - CORE_QUERIES.length);
-  const start = ROTATING_QUERIES.length > 0 ? getDaySeed() % ROTATING_QUERIES.length : 0;
-  const rotating = Array.from({ length: rotatingSlots }, (_, index) => ROTATING_QUERIES[(start + index) % ROTATING_QUERIES.length]);
+  const rotating = ROTATING_QUERIES.length > 0
+    ? Array.from({ length: rotatingSlots }, (_, index) => ROTATING_QUERIES[(getDaySeed() + index) % ROTATING_QUERIES.length])
+    : [];
   const planned = [...CORE_QUERIES, ...rotating].slice(0, MAX_DISCOVERY_QUERIES);
   const queryHealth = await loadQueryHealthState();
   const budgetState = await loadBudgetState();
@@ -172,7 +156,7 @@ async function getDiscoveryQueries(): Promise<{ queries: DiscoveryQueryPlan[]; r
   };
 }
 
-function recencyToTbs(recency: SearchRecency) {
+function recencyToTbs(recency: DiscoverySearchRecency) {
   if (recency === "day") return "qdr:d";
   if (recency === "week") return "qdr:w";
   if (recency === "month") return "qdr:m";
@@ -255,7 +239,7 @@ type SerpApiResponse = {
   organic_results?: SerpApiOrganicResult[];
 };
 
-async function fetchSerpApiQuery(query: string, apiKey: string, recency: SearchRecency) {
+async function fetchSerpApiQuery(query: string, apiKey: string, recency: DiscoverySearchRecency) {
   const url = new URL("https://serpapi.com/search.json");
   url.searchParams.set("engine", "google");
   url.searchParams.set("q", query);

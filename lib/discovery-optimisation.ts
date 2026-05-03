@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { toDiscoverySafeError, type DiscoverySafeError } from "@/lib/discovery-runs";
+import { buildRecommendedDiscoveryQueries } from "@/lib/discovery-query-templates";
 
 export type DiscoveryRunRow = {
   id: string;
@@ -200,57 +201,10 @@ export async function loadDiscoveryExportData(): Promise<{ data: DiscoveryExport
   };
 }
 
-function cleanText(value: string | null | undefined) {
-  return String(value ?? "").trim();
-}
-
-function extractUsefulTerms(query: string) {
-  const cleaned = cleanText(query)
-    .replace(/site:[^\s]+/gi, "")
-    .replace(/[\-+]/g, " ")
-    .replace(/\b(reddit|forum|forums|google|images|ebay|stl|cad|replacement|part|parts|available|unavailable|oem|cannot|cant|can't|find|missing|looking|for|the|and|or|of|a|an)\b/gi, " ")
-    .replace(/[^a-zA-Z0-9\s]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return cleaned.split(" ").filter((token) => token.length >= 3).slice(0, 3);
-}
-
 function buildRecommendedQueries(winningPatterns: AggregatedQueryPerformance[]) {
-  const scarcityPhrases = ["can't find", "discontinued", "no longer available", "OEM unavailable", "replacement part not available"];
-  const physicalTerms = ["trim", "clip", "bracket", "cover", "retainer", "housing"];
-  const seeds = winningPatterns.slice(0, 5).flatMap((pattern) => extractUsefulTerms(pattern.query));
-  const seedTerms = [...new Set(seeds.filter((term) => !/(panel|bumper|paint|bodywork|engine|ecu|wiring|sensor)/i.test(term)))];
-  const contexts = seedTerms.length ? seedTerms : ["trim", "clip", "bracket"];
-
-  const recommendations = new Map<string, string>();
-
-  for (const scarcity of scarcityPhrases) {
-    for (const physical of physicalTerms) {
-      for (const context of contexts) {
-        const query = cleanText(`${scarcity} ${context} ${physical} replacement part`).replace(/\s+/g, " ");
-        if (!/(panel|bumper|paint|bodywork|engine|ecu|wiring|sensor)/i.test(query)) {
-          recommendations.set(query, `Built from winning context term "${context}" + scarcity intent + physical part term "${physical}".`);
-        }
-        if (recommendations.size >= 10) break;
-      }
-      if (recommendations.size >= 10) break;
-    }
-    if (recommendations.size >= 10) break;
-  }
-
-  while (recommendations.size < 5) {
-    const fallback = [
-      "can't find trim clip replacement part",
-      "discontinued bracket replacement part",
-      "no longer available retainer replacement part",
-      "OEM unavailable cover replacement part",
-      "replacement part not available housing",
-    ][recommendations.size % 5];
-    recommendations.set(fallback, "Fallback scarcity + physical part pattern.");
-  }
-
-  return [...recommendations.entries()].map(([query, reason]) => ({ query, reason }));
+  return buildRecommendedDiscoveryQueries(
+    winningPatterns.map((item) => ({ query: item.query, group_name: item.group_name }))
+  );
 }
 
 function buildWinningPatterns(aggregated: AggregatedQueryPerformance[]) {

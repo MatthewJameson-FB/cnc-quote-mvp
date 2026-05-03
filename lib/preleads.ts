@@ -6,6 +6,7 @@ import { sendPreleadSummaryEmail } from "@/lib/notifications";
 import { buildSearchContext } from "@/lib/research-context";
 import { formatThreadContextSummary, summarizeThreadContext, type ThreadContextSummary } from "@/lib/prelead-thread-context";
 import { buildEnabledPreleadAdapters } from "@/lib/prelead-adapters";
+import { buildRedditSearchQueries } from "@/lib/discovery-query-templates";
 import type { RawPreleadCandidate } from "@/lib/prelead-adapters/types";
 import {
   type AiPreleadClassification,
@@ -208,18 +209,7 @@ const BUILTIN_SUBREDDITS = [
   "3Dprinting",
   "AskEngineers",
 ];
-const BUILTIN_QUERIES = [
-  'broken part replacement',
-  'discontinued part replacement',
-  'stl file paid',
-  'need a 3d model broken part',
-  'can someone make this',
-  'need this 3d printed',
-  'one off machined part',
-  'machine shop quote',
-  'custom bracket quote',
-  'i have a cad file quote',
-];
+const BUILTIN_QUERIES = buildRedditSearchQueries();
 const DEFAULT_MAX_RESULTS = 30;
 const REDDIT_TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token";
 const REDDIT_API_BASE = "https://oauth.reddit.com";

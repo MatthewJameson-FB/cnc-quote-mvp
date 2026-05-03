@@ -1,21 +1,11 @@
 import { readFile } from "node:fs/promises";
+import { buildRedditSearchQueries } from "@/lib/discovery-query-templates";
 import type { AdapterLogger, PreleadAdapter, RawPreleadCandidate } from "./types";
 
 const ROOT = process.cwd();
 const SOURCES_FILE = `${ROOT}/data/prelead-sources.json`;
 const BUILTIN_SUBREDDITS = ["CNC", "Machinists", "projectcar", "kitcar", "Cartalk", "motorcycles", "3Dprinting", "AskEngineers"];
-const BUILTIN_QUERIES = [
-  'broken part replacement',
-  'discontinued part replacement',
-  'stl file paid',
-  'need a 3d model broken part',
-  'can someone make this',
-  'need this 3d printed',
-  'one off machined part',
-  'machine shop quote',
-  'custom bracket quote',
-  'i have a cad file quote',
-];
+const BUILTIN_QUERIES = buildRedditSearchQueries();
 const REDDIT_TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token";
 const REDDIT_API_BASE = "https://oauth.reddit.com";
 
