@@ -39,7 +39,7 @@ export const DISCOVERY_USER_PHRASES = [
 
 export const DISCOVERY_CAR_CONTEXTS = ['car', 'car part', 'car interior', 'car trim', 'interior trim'] as const;
 
-export const DISCOVERY_ENTHUSIAST_MODELS = ['mx5', 'bmw e46', 'audi a4', 'golf mk5', 'mini r53'] as const;
+export const DISCOVERY_PRIORITY_MODELS = ['mx5', 'bmw e46', 'bmw e90', 'vw golf mk4', 'vw golf mk5', 'land rover defender'] as const;
 
 const NEGATIVE_SUFFIX = DISCOVERY_NEGATIVE_FILTERS.join(' ');
 
@@ -55,13 +55,23 @@ function quote(term: string) {
   return `"${term.replace(/"/g, '')}"`;
 }
 
+function pickVariant<T>(variants: readonly T[]) {
+  return variants[Math.floor(Date.now() / 86400000) % variants.length];
+}
+
+function modelVariantQuery(model: string) {
+  return appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')} ${quote(model)}`);
+}
+
 export function buildDiscoverySearchTemplates(): { core: DiscoveryQueryTemplate[]; rotating: DiscoveryQueryTemplate[] } {
+  const rotatingModels = [pickVariant(['bmw e46', 'bmw e90'] as const), pickVariant(['vw golf mk4', 'vw golf mk5'] as const)];
+
   const core = [
     appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')}`),
-    appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')} ${quote('mx5')}`),
-    appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')} ${quote('bmw e46')}`),
-    appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')} ${quote('audi a4')}`),
-    appendNegativeFilters(`site:reddit.com ${quote('broken part replacement')} ${quote('golf mk5')}`),
+    modelVariantQuery('mx5'),
+    modelVariantQuery(rotatingModels[0]),
+    modelVariantQuery(rotatingModels[1]),
+    modelVariantQuery('land rover defender'),
   ].map((query) => ({ kind: 'core' as const, recency: 'week' as const, query }));
 
   const rotating: DiscoveryQueryTemplate[] = [];
@@ -73,9 +83,9 @@ export function buildRedditSearchQueries() {
   const queries = [
     'broken part replacement',
     'broken part replacement mx5',
-    'broken part replacement bmw e46',
-    'broken part replacement audi a4',
-    'broken part replacement golf mk5',
+    `broken part replacement ${pickVariant(['bmw e46', 'bmw e90'] as const)}`,
+    `broken part replacement ${pickVariant(['vw golf mk4', 'vw golf mk5'] as const)}`,
+    'broken part replacement land rover defender',
   ];
 
   return [...new Set(queries.map((query) => query.trim()).filter(Boolean))].slice(0, 12);
@@ -138,20 +148,20 @@ export function buildRecommendedDiscoveryQueries(winningPatterns: { query: strin
   }
 
   for (const seed of seeds) {
-    for (const model of DISCOVERY_ENTHUSIAST_MODELS) {
+    for (const model of DISCOVERY_PRIORITY_MODELS) {
       const context = seed.includes(' ') ? seed : `${seed} part`;
       const query = buildNaturalQuery(context, model);
-      recommendations.set(query, `Derived from winning phrasing "${seed}" and focused on enthusiast model ${model}.`);
+      recommendations.set(query, `Derived from winning phrasing "${seed}" and focused on priority model ${model}.`);
       if (recommendations.size >= 12) break;
     }
     if (recommendations.size >= 12) break;
   }
 
   if (recommendations.size < 10) {
-    for (const model of DISCOVERY_ENTHUSIAST_MODELS) {
+    for (const model of DISCOVERY_PRIORITY_MODELS) {
       for (const phrase of DISCOVERY_USER_PHRASES) {
         const query = appendNegativeFilters(`site:reddit.com ${quote(model)} ${quote(phrase)}`);
-        recommendations.set(query, `Enthusiast model ${model} with natural phrasing "${phrase}".`);
+        recommendations.set(query, `Priority model ${model} with natural phrasing "${phrase}".`);
         if (recommendations.size >= 10) break;
       }
       if (recommendations.size >= 10) break;
