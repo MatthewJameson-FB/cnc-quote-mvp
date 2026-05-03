@@ -14,7 +14,7 @@ type DiscoveryRunRow = {
   searches_used: number | null;
   fetched: number | null;
   sent_to_ai: number | null;
-  accepted: number | null;
+  ai_accepted: number | null;
   inserted: number | null;
   duplicates_skipped: number | null;
   quota_exhausted: boolean | null;
@@ -49,7 +49,7 @@ export default async function DiscoveryRunsPage() {
   try {
     const { data, error } = await supabase
       .from("discovery_runs")
-      .select("id, started_at, finished_at, trigger_type, status, searches_used, fetched, sent_to_ai, accepted, inserted, duplicates_skipped, quota_exhausted, error_message")
+      .select("id, started_at, finished_at, trigger_type, status, searches_used, fetched, sent_to_ai, ai_accepted, inserted, duplicates_skipped, quota_exhausted, error_message")
       .order("started_at", { ascending: false })
       .limit(50);
 
@@ -101,7 +101,7 @@ export default async function DiscoveryRunsPage() {
                   <td className="px-4 py-3 text-slate-700">{metric(run.searches_used)}</td>
                   <td className="px-4 py-3 text-slate-700">{metric(run.fetched)}</td>
                   <td className="px-4 py-3 text-slate-700">{metric(run.sent_to_ai)}</td>
-                  <td className="px-4 py-3 text-slate-700">{metric(run.accepted)}</td>
+                  <td className="px-4 py-3 text-slate-700">{metric(run.ai_accepted)}</td>
                   <td className="px-4 py-3 text-slate-700">{metric(run.inserted)}</td>
                   <td className="px-4 py-3 text-slate-700">{metric(run.duplicates_skipped)}</td>
                   <td className="px-4 py-3 text-slate-700">{run.quota_exhausted ? "yes" : "no"}</td>
