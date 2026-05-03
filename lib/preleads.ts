@@ -7,7 +7,7 @@ import { buildSearchContext } from "@/lib/research-context";
 import { formatThreadContextSummary, summarizeThreadContext, type ThreadContextSummary } from "@/lib/prelead-thread-context";
 import { buildEnabledPreleadAdapters } from "@/lib/prelead-adapters";
 import { buildRedditSearchQueries } from "@/lib/discovery-query-templates";
-import { classifyLeadType, type PreleadLeadType } from "@/lib/prelead-lead-type";
+import { classifyLeadType, leadSignalProfile, type PreleadLeadType } from "@/lib/prelead-lead-type";
 import type { RawPreleadCandidate } from "@/lib/prelead-adapters/types";
 import {
   type AiPreleadClassification,
@@ -960,7 +960,6 @@ function computeValueAssessment(lead: Pick<Prelead, "title" | "snippet" | "locat
   const automotivePart = hasClearPhysicalPartSignal(text);
   const automotiveHighValue = automotiveContext && automotivePart;
   const easyBuy = hasEasyBuySignal(text);
-
   if (hasAnyPattern(text, highValueObjectPatterns)) {
     value_score += 3;
     reasons.push("expensive object");
@@ -1536,6 +1535,16 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (location.location_signal === "outside_uk") score -= Math.round(8 + location.location_confidence * 10);
   if (location.location_signal === "unknown") score += Math.round(location.location_confidence * 2);
   if (automotiveContext) score += automotivePart ? 10 : 2;
+  const signalBreakdown = getManufacturableSignalBreakdown(text);
+  if (signalBreakdown.supply_gap_signal) score += 4;
+  if (signalBreakdown.cad_or_stl_need) score += 4;
+  if (signalBreakdown.fabrication_request) score += 4;
+  if (signalBreakdown.manufacturable_part_signal) score += 2;
+  if (signalBreakdown.unresolved_need_signal) score += 3;
+  if (signalBreakdown.workaround_signal) score += 2;
+  if (signalBreakdown.repeated_demand_signal) score += 2;
+  if (signalBreakdown.showcase_signal) score -= 4;
+  if (signalBreakdown.generic_broken_signal) score -= 3;
   if (hasAnyPattern(text, buyerProblemBoostPatterns) && !hasAnyPattern(text, realWorldObjectBoostPatterns) && !hasAnyPattern(text, explicitIntentBoostPatterns)) {
     score -= 12;
   }
@@ -1548,6 +1557,7 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   score += Math.min(8, directRequestNeedCount * 3);
   score += Math.min(2, weakNeedCount);
   if (directRequestNeedCount === 0 && analysis.intent_type !== "buyer_problem") score -= 5;
+  if (signalBreakdown.generic_broken_signal && !signalBreakdown.supply_gap_signal && !signalBreakdown.cad_or_stl_need && !signalBreakdown.fabrication_request && !signalBreakdown.workaround_signal && !signalBreakdown.repeated_demand_signal) score -= 8;
   if (!hasQualificationSignal(analysis)) score -= 10;
   if (hasStrongBuyerRequestShape(leadLikeShape, analysis)) score += 8;
   if (looksLikeFeasibilityOrDiscussionPost(leadLikeShape)) score -= 8;
@@ -2311,7 +2321,90 @@ function hasAnyPattern(text: string, patterns: RegExp[]) {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+function countSignalMatches(text: string, patterns: RegExp[]) {
+  return patterns.filter((pattern) => pattern.test(text)).length;
+}
+
+function getManufacturableSignalBreakdown(text: string) {
+  const profile = leadSignalProfile(text);
+  return {
+    supply_gap_signal: profile.supply_gap_signal || hasAnyPattern(text, [
+      /discontinued/i,
+      /no longer available/i,
+      /nla/i,
+      /dealer can(?:'|’)t get/i,
+      /dealer cannot supply/i,
+      /oem unavailable/i,
+      /backorder forever/i,
+      /unavailable anywhere/i,
+      /can(?:'|’)t find anywhere/i,
+      /can(?:'|’)t find this part/i,
+      /does anyone sell this/i,
+      /where can i get this/i,
+      /need replacement/i,
+      /looking for replacement/i,
+    ]),
+    cad_or_stl_need: profile.cad_or_stl_need || hasAnyPattern(text, [
+      /anyone have an stl/i,
+      /looking for stl/i,
+      /need a cad file/i,
+      /anyone got a 3d model/i,
+      /can someone model this/i,
+      /3d scan this part/i,
+      /could this be 3d printed/i,
+      /thinking of printing this/i,
+    ]),
+    fabrication_request: profile.fabrication_request || hasAnyPattern(text, [
+      /custom fabricate/i,
+      /fabricate/i,
+      /cnc/i,
+      /machine/i,
+      /machine shop/i,
+      /make a bracket/i,
+      /need a bracket/i,
+      /custom bracket/i,
+      /custom mount/i,
+      /adapter for/i,
+      /fit(?:ting)?\s+.*\s+into\s+.*/i,
+      /swap/i,
+      /retrofit/i,
+      /small batch/i,
+      /reproduction part/i,
+    ]),
+    manufacturable_part_signal: profile.manufacturable_part_signal || countSignalMatches(text, [
+      /clip/i, /tab/i, /bracket/i, /mount/i, /trim/i, /cover/i, /retainer/i, /hinge/i, /spacer/i, /adapter/i, /knob/i, /vent/i, /surround/i,
+    ]) > 0,
+    unresolved_need_signal: profile.unresolved_need_signal || /need/i.test(text) || /looking for/i.test(text) || /can't find/i.test(text) || /where can i get/i.test(text),
+    workaround_signal: profile.workaround_signal || hasAnyPattern(text, [
+      /glued it/i,
+      /temporary fix/i,
+      /bodge/i,
+      /zip tied/i,
+      /patched/i,
+      /repaired it but/i,
+      /tried ebay/i,
+      /tried junkyard/i,
+      /tried breaker/i,
+      /couldn(?:'|’)t source/i,
+      /workaround/i,
+    ]),
+    repeated_demand_signal: profile.repeated_demand_signal || hasAnyPattern(text, [
+      /same issue/i,
+      /me too/i,
+      /i need one/i,
+      /group buy/i,
+      /small batch/i,
+      /reproduction part/i,
+      /multiple users?/i,
+      /anyone else/i,
+    ]),
+    showcase_signal: profile.showcase_signal || hasAnyPattern(text, [/fixed/i, /solved/i, /updated/i, /before and after/i, /finally done/i, /installed/i, /done/i, /happy with/i]),
+    generic_broken_signal: profile.generic_broken_signal,
+  };
+}
+
 function looksLikeCuriosityOrPracticePost(text: string) {
+
   return hasAnyPattern(text, curiosityRejectPatterns);
 }
 
@@ -2320,6 +2413,7 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
   const hardness = getPartHardnessSignals(text);
   const easyBuy = hasEasyBuySignal(text);
+  const signalBreakdown = getManufacturableSignalBreakdown(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (isShowcaseNoNeed(text, intent)) return "solved_or_showcase_no_need";
@@ -2329,6 +2423,7 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
   if (easyBuy && !hasStrongUnavailableSignal(text) && intent.three_d_print_signals.length > 0) return "low_quality_signal";
   if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
+  if (signalBreakdown.generic_broken_signal && !signalBreakdown.supply_gap_signal && !signalBreakdown.cad_or_stl_need && !signalBreakdown.fabrication_request && !signalBreakdown.workaround_signal && !signalBreakdown.repeated_demand_signal) return "low_quality_signal";
   if (looksLikeFeasibilityOrDiscussionPost(lead) && intent.intent_type !== "buyer_problem") return "low_quality_signal";
   if (bannedSignals.length > 0) return "banned_keyword";
   if (intent.intent_type === "supplier_ad") return "supplier_ad";
@@ -2348,6 +2443,7 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const sourceUrl = lead.source_url.toLowerCase();
   const hardness = getPartHardnessSignals(text);
   const easyBuy = hasEasyBuySignal(text);
+  const signalBreakdown = getManufacturableSignalBreakdown(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
   if (isShowcaseNoNeed(text, intent)) return "solved_or_showcase_no_need";
@@ -2363,6 +2459,7 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   if (/\/r\/(jobs|forhire|careerguidance|careeradvice)\//i.test(sourceUrl)) return "job";
 
   if (looksLikeCuriosityOrPracticePost(text)) return "curiosity_practice";
+  if (signalBreakdown.generic_broken_signal && !signalBreakdown.supply_gap_signal && !signalBreakdown.cad_or_stl_need && !signalBreakdown.fabrication_request && !signalBreakdown.workaround_signal && !signalBreakdown.repeated_demand_signal) return "low_quality_signal";
   if (bannedSignals.some((signal) => ["job", "hiring", "salary", "career"].includes(signal))) return "job";
   if (bannedSignals.some((signal) => ["politics", "news", "election", "government"].includes(signal))) return "politics_news";
   if (bannedSignals.some((signal) => ["course", "tutorial", "training"].includes(signal))) return "tutorial_course";
@@ -2566,11 +2663,31 @@ function hasStrongBuyerRequestShape(lead: Pick<Prelead, "title" | "snippet">, in
 }
 
 function isEligibleForAiShortlist(lead: Prelead, intent: PreleadIntent) {
+  const text = getCandidateText(lead);
+  const signals = getManufacturableSignalBreakdown(text);
+  const signalCount = [
+    signals.supply_gap_signal,
+    signals.cad_or_stl_need,
+    signals.fabrication_request,
+    signals.manufacturable_part_signal,
+    signals.unresolved_need_signal,
+    signals.repeated_demand_signal,
+    signals.workaround_signal,
+  ].filter(Boolean).length;
+
   if (!hasStrictLeadQualitySignal(lead, intent)) {
     return false;
   }
 
-  if (!hasQualificationSignal(intent) && !hasMachiningOrPhysicalPartSignal(intent)) {
+  if (signalCount < 2) {
+    return false;
+  }
+
+  if (signals.generic_broken_signal && !signals.supply_gap_signal && !signals.cad_or_stl_need && !signals.fabrication_request && !signals.workaround_signal && !signals.repeated_demand_signal) {
+    return false;
+  }
+
+  if (!hasQualificationSignal(intent) && !hasMachiningOrPhysicalPartSignal(intent) && !signals.manufacturable_part_signal) {
     return false;
   }
 
@@ -2586,7 +2703,7 @@ function isEligibleForAiShortlist(lead: Prelead, intent: PreleadIntent) {
     return false;
   }
 
-  if (looksLikeSupportReplacementPost(getCandidateText(lead)) && looksLikeConsumerDeviceReplacement(getCandidateText(lead), lead.source_url)) {
+  if (looksLikeSupportReplacementPost(text) && looksLikeConsumerDeviceReplacement(text, lead.source_url)) {
     return false;
   }
 
@@ -2596,12 +2713,23 @@ function isEligibleForAiShortlist(lead: Prelead, intent: PreleadIntent) {
 function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   let score = lead.lead_score;
   const text = getCandidateText(lead);
+  const signals = getManufacturableSignalBreakdown(text);
 
   score += lead.value_score * 2;
   if (lead.value_tier === "high") score += 8;
   if (lead.value_tier === "medium") score += 3;
 
   if (!hasStrictLeadQualitySignal(lead, intent)) score -= 24;
+
+  if (signals.supply_gap_signal) score += 4;
+  if (signals.cad_or_stl_need) score += 4;
+  if (signals.fabrication_request) score += 4;
+  if (signals.manufacturable_part_signal) score += 2;
+  if (signals.unresolved_need_signal) score += 3;
+  if (signals.workaround_signal) score += 2;
+  if (signals.repeated_demand_signal) score += 2;
+  if (signals.showcase_signal) score -= 6;
+  if (signals.generic_broken_signal) score -= 3;
 
   if (intent.intent_type === "buyer_problem") score += 14;
   if (intent.intent_type === "general_discussion") score -= 10;
@@ -2621,8 +2749,8 @@ function calculateAiShortlistScore(lead: Prelead, intent: PreleadIntent) {
   if (intent.confidence < 0.5) score -= 6;
   if (!hasStrongBuyerRequestShape(lead, intent)) score -= 18;
   if (looksLikeFeasibilityOrDiscussionPost(lead)) score -= 12;
-  if (looksLikeSupportReplacementPost(getCandidateText(lead))) score -= 15;
-  if (looksLikeConsumerDeviceReplacement(getCandidateText(lead), lead.source_url)) score -= 12;
+  if (looksLikeSupportReplacementPost(text)) score -= 15;
+  if (looksLikeConsumerDeviceReplacement(text, lead.source_url)) score -= 12;
   if (hasHighTicketFabricationSignal(text, intent)) score += 12;
   if (hasAnyPattern(text, buyerProblemBoostPatterns)) score += 8;
   if (hasAnyPattern(text, realWorldObjectBoostPatterns)) score += 6;
@@ -3417,26 +3545,37 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       logger.info(`candidates sent to AI: ${aiCandidates.length}`);
       logger.debug(
         "top AI shortlist candidates:",
-        orderedAiCandidates.slice(0, 10).map(({ lead, intent }) => ({
-          title: lead.title,
-          query_used: rawCandidateByUrl.get(lead.source_url)?.query_used ?? null,
-          shortlist_score: calculateAiShortlistScore(lead, intent),
-          lead_score: lead.lead_score,
-          has_file: lead.has_file ?? false,
-          has_photos: lead.has_photos ?? false,
-          stage: lead.stage ?? "unknown",
-          manufacturing_type: lead.manufacturing_type ?? "unknown",
-          route: lead.routing_decision ?? "review",
-          intent_type: intent.intent_type,
-          intent_confidence: intent.confidence,
-          machining_signals: intent.machining_signals,
-          three_d_print_signals: intent.three_d_print_signals,
-          make_intent_signals: intent.make_intent_signals,
-          file_signals: intent.file_signals,
-          physical_part_signals: intent.physical_part_signals,
-          need_signals: intent.need_signals,
-          location_signal: lead.location_signal,
-        }))
+        orderedAiCandidates.slice(0, 10).map(({ lead, intent }) => {
+          const breakdown = getManufacturableSignalBreakdown(`${lead.title} ${lead.snippet}`);
+          return {
+            title: lead.title,
+            query_used: rawCandidateByUrl.get(lead.source_url)?.query_used ?? null,
+            shortlist_score: calculateAiShortlistScore(lead, intent),
+            lead_score: lead.lead_score,
+            lead_type: lead.lead_type ?? classifyLeadType(`${lead.title} ${lead.snippet}`),
+            supply_gap_signal: breakdown.supply_gap_signal,
+            cad_or_stl_need: breakdown.cad_or_stl_need,
+            fabrication_request: breakdown.fabrication_request,
+            manufacturable_part_signal: breakdown.manufacturable_part_signal,
+            unresolved_need_signal: breakdown.unresolved_need_signal,
+            workaround_signal: breakdown.workaround_signal,
+            repeated_demand_signal: breakdown.repeated_demand_signal,
+            has_file: lead.has_file ?? false,
+            has_photos: lead.has_photos ?? false,
+            stage: lead.stage ?? "unknown",
+            manufacturing_type: lead.manufacturing_type ?? "unknown",
+            route: lead.routing_decision ?? "review",
+            intent_type: intent.intent_type,
+            intent_confidence: intent.confidence,
+            machining_signals: intent.machining_signals,
+            three_d_print_signals: intent.three_d_print_signals,
+            make_intent_signals: intent.make_intent_signals,
+            file_signals: intent.file_signals,
+            physical_part_signals: intent.physical_part_signals,
+            need_signals: intent.need_signals,
+            location_signal: lead.location_signal,
+          };
+        })
       );
     }
 
