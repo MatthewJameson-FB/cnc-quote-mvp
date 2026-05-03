@@ -546,15 +546,19 @@ type PreAiHardRejectReason =
   | "non_manufacturable"
   | "outside_uk_strong"
   | "low_quality_signal"
-  | "curiosity_practice";
+  | "curiosity_practice"
+  | "showcase_or_solved_post"
+  | "missing_buying_intent";
 
 type FinalRejectionReason =
   | "ai_confidence_too_low"
   | "missing_problem_signal"
+  | "missing_buying_intent"
   | "outside_uk"
   | "outside_uk_strong"
   | "duplicate"
-  | "hard_reject";
+  | "hard_reject"
+  | "showcase_or_solved_post";
 
 type PreleadIntent = {
   intent_type: PreleadIntentType;
@@ -888,6 +892,10 @@ function hasStrictLeadQualitySignal(lead: Pick<Prelead, "title" | "snippet">, in
   }
 
   if (!hasPositiveBuyingIntentSignal(lead, intent)) {
+    return false;
+  }
+
+  if (!hasUnresolvedNeed(text, intent)) {
     return false;
   }
 
@@ -2291,8 +2299,8 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
-  if (looksLikeShowcaseOrOwnerPost(text)) return "low_quality_signal";
-  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "no_need_signal";
+  if (looksLikeShowcaseOrOwnerPost(text)) return "showcase_or_solved_post";
+  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "missing_buying_intent";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
@@ -2319,8 +2327,8 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
-  if (looksLikeShowcaseOrOwnerPost(text)) return "low_quality_signal";
-  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "no_need_signal";
+  if (looksLikeShowcaseOrOwnerPost(text)) return "showcase_or_solved_post";
+  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "missing_buying_intent";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
   if (easyBuy && !hasStrongUnavailableSignal(text) && intent.three_d_print_signals.length > 0) return "low_quality_signal";
@@ -2367,6 +2375,23 @@ const weakNeedSignals = new Set(["quote", "CAD", "drawing", "machined", "machini
 
 function hasDirectRequestNeedSignal(intent: PreleadIntent) {
   return intent.need_signals.some((signal) => !weakNeedSignals.has(signal));
+}
+
+function hasBuyingOrHelpIntent(text: string, intent: PreleadIntent) {
+  return hasDirectRequestNeedSignal(intent) || hasAnyPattern(text, explicitIntentBoostPatterns) || hasAnyPattern(text, buyerProblemBoostPatterns);
+}
+
+function hasUnresolvedNeed(text: string, intent: PreleadIntent) {
+  return hasBuyingOrHelpIntent(text, intent) && !looksLikeShowcaseOrOwnerPost(text);
+}
+
+function getQualificationFlags(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
+  const text = getCandidateText(lead);
+  return {
+    unresolved_need: hasUnresolvedNeed(text, intent),
+    solved_or_showcase: looksLikeShowcaseOrOwnerPost(text) || hasAnyPattern(text, completionSignalPatterns),
+    buying_or_help_intent: hasBuyingOrHelpIntent(text, intent),
+  };
 }
 
 function hasClearPhysicalPartSignal(text: string) {
@@ -2592,9 +2617,12 @@ function getFinalAiRejectionReason(
   includeOutsideUk: boolean,
   minConfidence: number
 ): FinalRejectionReason | null {
+  const text = getCandidateText(lead);
   if (!classification.is_lead) return "hard_reject";
   if (classification.confidence < minConfidence) return "ai_confidence_too_low";
   if (looksLikeNonManufacturableRepairJob(lead)) return "hard_reject";
+  if (looksLikeShowcaseOrOwnerPost(text)) return "showcase_or_solved_post";
+  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "missing_buying_intent";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
   if (!hasStrictLeadQualitySignal(lead, intent)) return "missing_problem_signal";
@@ -3240,6 +3268,8 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     outside_uk_strong: [],
     low_quality_signal: [],
     curiosity_practice: [],
+    showcase_or_solved_post: [],
+    missing_buying_intent: [],
   };
   const preAiRejectedReasonCounts = new Map<string, number>();
   const aiRejectedReasonCounts = new Map<string, number>();
@@ -3251,6 +3281,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     ai_manufacturing_type: string | null;
     ai_problem_summary: string | null;
     rejection_reason: string | null;
+    unresolved_need: boolean;
+    solved_or_showcase: boolean;
+    buying_or_help_intent: boolean;
   }>();
   const preAiCandidates: Array<{ lead: Prelead; intent: PreleadIntent }> = [];
   const leads: Prelead[] = [];
@@ -3266,8 +3299,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       const preAiHardRejectReason = useAiPipeline ? getPreAiHardRejectReason(lead, intent) : null;
 
       if (debugEnabled) {
+        const qualificationFlags = getQualificationFlags(lead, intent);
         logger.debug(
-          `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} comment_context_used=${rawCandidate?.comment_context_used ? 'yes' : 'no'} comment_context_reason=${rawCandidate?.comment_context_reason ?? 'none'} thread_context_summary=${formatThreadContextSummary(rawCandidate?.thread_context_summary ?? null)} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
+          `title=${lead.title} query_used=${rawCandidate?.query_used ?? 'none'} intent_type=${intent.intent_type} confidence=${intent.confidence.toFixed(2)} location_signal=${lead.location_signal} location_confidence=${lead.location_confidence.toFixed(2)} location_reasons=${lead.location_reasons.join('; ') || 'none'} machining_signals=${intent.machining_signals.join('; ') || 'none'} three_d_print_signals=${intent.three_d_print_signals.join('; ') || 'none'} make_intent_signals=${intent.make_intent_signals.join('; ') || 'none'} file_signals=${intent.file_signals.join('; ') || 'none'} physical_part_signals=${intent.physical_part_signals.join('; ') || 'none'} need_signals=${intent.need_signals.join('; ') || 'none'} negative_signals=${intent.negative_signals.join('; ') || 'none'} unresolved_need=${qualificationFlags.unresolved_need ? 'true' : 'false'} solved_or_showcase=${qualificationFlags.solved_or_showcase ? 'true' : 'false'} buying_or_help_intent=${qualificationFlags.buying_or_help_intent ? 'true' : 'false'} has_file=${lead.has_file ? 'yes' : 'no'} has_photos=${lead.has_photos ? 'yes' : 'no'} stage=${lead.stage ?? 'unknown'} manufacturing_type=${lead.manufacturing_type ?? 'unknown'} route=${lead.routing_decision ?? 'review'} part_candidate=${lead.part_candidate ? 'true' : 'false'} intake_validation=${lead.intake_validation_reason ?? 'ok'} comment_context_used=${rawCandidate?.comment_context_used ? 'yes' : 'no'} comment_context_reason=${rawCandidate?.comment_context_reason ?? 'none'} thread_context_summary=${formatThreadContextSummary(rawCandidate?.thread_context_summary ?? null)} pre_ai_reject_reason=${preAiHardRejectReason ?? 'none'}`
         );
         if (lead.routing_decision === 'cad_required') {
           logger.debug('CAD_REQUIRED');
@@ -3396,6 +3430,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           if (rejectedQueryUsed) {
             incrementQueryRejectReason(getOrCreateQueryStats(queryStats, rejectedQueryUsed), `ai_reject:${classification.reason || "hard_reject"}`);
           }
+          const qualificationFlags = getQualificationFlags(preAiCandidate.lead, preAiCandidate.intent);
           aiDecisionByUrl.set(candidate.source_url, {
             ai_is_lead: classification.is_lead,
             ai_confidence: classification.confidence,
@@ -3403,6 +3438,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
             ai_manufacturing_type: classification.manufacturing_type,
             ai_problem_summary: classification.problem_summary,
             rejection_reason: "hard_reject",
+            unresolved_need: qualificationFlags.unresolved_need,
+            solved_or_showcase: qualificationFlags.solved_or_showcase,
+            buying_or_help_intent: qualificationFlags.buying_or_help_intent,
           });
           continue;
         }
@@ -3431,6 +3469,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           if (queryUsed) {
             incrementQueryRejectReason(getOrCreateQueryStats(queryStats, queryUsed), `final_reject:${finalRejectionReason}`);
           }
+          const qualificationFlags = getQualificationFlags(preAiCandidate.lead, preAiCandidate.intent);
           aiDecisionByUrl.set(candidate.source_url, {
             ai_is_lead: classification.is_lead,
             ai_confidence: classification.confidence,
@@ -3438,6 +3477,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
             ai_manufacturing_type: classification.manufacturing_type,
             ai_problem_summary: classification.problem_summary,
             rejection_reason: finalRejectionReason,
+            unresolved_need: qualificationFlags.unresolved_need,
+            solved_or_showcase: qualificationFlags.solved_or_showcase,
+            buying_or_help_intent: qualificationFlags.buying_or_help_intent,
           });
           continue;
         }
@@ -3449,6 +3491,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           if (duplicateQueryUsed) {
             incrementQueryRejectReason(getOrCreateQueryStats(queryStats, duplicateQueryUsed), "duplicate");
           }
+          const qualificationFlags = getQualificationFlags(preAiCandidate.lead, preAiCandidate.intent);
           aiDecisionByUrl.set(candidate.source_url, {
             ai_is_lead: classification.is_lead,
             ai_confidence: classification.confidence,
@@ -3456,6 +3499,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
             ai_manufacturing_type: classification.manufacturing_type,
             ai_problem_summary: classification.problem_summary,
             rejection_reason: "duplicate",
+            unresolved_need: qualificationFlags.unresolved_need,
+            solved_or_showcase: qualificationFlags.solved_or_showcase,
+            buying_or_help_intent: qualificationFlags.buying_or_help_intent,
           });
           continue;
         }
@@ -3473,6 +3519,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           hardness: acceptedHardness.bodyworkMatch && !acceptedHardness.scarcityMatch ? "bodywork rejected" : acceptedHardness.scarcityMatch ? "scarcity signal" : "neutral",
         };
 
+        const qualificationFlags = getQualificationFlags(preAiCandidate.lead, preAiCandidate.intent);
         aiDecisionByUrl.set(candidate.source_url, {
           ai_is_lead: classification.is_lead,
           ai_confidence: classification.confidence,
@@ -3480,6 +3527,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           ai_manufacturing_type: classification.manufacturing_type,
           ai_problem_summary: classification.problem_summary,
           rejection_reason: null,
+          unresolved_need: qualificationFlags.unresolved_need,
+          solved_or_showcase: qualificationFlags.solved_or_showcase,
+          buying_or_help_intent: qualificationFlags.buying_or_help_intent,
         });
 
         finalAcceptedLeads.push(applyAiClassificationToLead(preAiCandidate.lead, classification, shouldReply, summarizeProblemSignals(preAiCandidate.intent)));
@@ -3498,40 +3548,55 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         logger.info(`AI rejected count: ${aiRejectedCount}`);
         logger.debug(
           'top accepted candidates:',
-          accepted.slice(0, 5).map(({ candidate, classification }) => ({
-            has_file: preAiCandidateByUrl.get(candidate.source_url)?.lead.has_file ?? false,
-            has_photos: preAiCandidateByUrl.get(candidate.source_url)?.lead.has_photos ?? false,
-            stage: preAiCandidateByUrl.get(candidate.source_url)?.lead.stage ?? "unknown",
-            title: candidate.title,
-            query_used: rawCandidateByUrl.get(candidate.source_url)?.query_used ?? null,
-            confidence: classification.confidence,
-            problem_type: classification.problem_type,
-            manufacturing_type: classification.manufacturing_type,
-            problem_summary: classification.problem_summary,
-            route: routeLead({
-              stage: preAiCandidateByUrl.get(candidate.source_url)?.lead.stage,
+          accepted.slice(0, 5).map(({ candidate, classification }) => {
+            const lead = preAiCandidateByUrl.get(candidate.source_url)?.lead;
+            const flags = lead ? getQualificationFlags(lead, preAiCandidateByUrl.get(candidate.source_url)?.intent ?? classifyPreleadIntent({ title: candidate.title, snippet: candidate.snippet })) : { unresolved_need: false, solved_or_showcase: false, buying_or_help_intent: false };
+            return {
+              has_file: lead?.has_file ?? false,
+              has_photos: lead?.has_photos ?? false,
+              stage: lead?.stage ?? "unknown",
+              title: candidate.title,
+              query_used: rawCandidateByUrl.get(candidate.source_url)?.query_used ?? null,
+              confidence: classification.confidence,
+              problem_type: classification.problem_type,
               manufacturing_type: classification.manufacturing_type,
-            }),
-            reason: classification.reason,
-          }))
+              problem_summary: classification.problem_summary,
+              unresolved_need: flags.unresolved_need,
+              solved_or_showcase: flags.solved_or_showcase,
+              buying_or_help_intent: flags.buying_or_help_intent,
+              route: routeLead({
+                stage: lead?.stage,
+                manufacturing_type: classification.manufacturing_type,
+              }),
+              reason: classification.reason,
+            };
+          })
         );
         logger.debug(
           'top rejected candidates:',
-          rejected.slice(0, 5).map(({ candidate, classification }) => ({
-            has_file: preAiCandidateByUrl.get(candidate.source_url)?.lead.has_file ?? false,
-            has_photos: preAiCandidateByUrl.get(candidate.source_url)?.lead.has_photos ?? false,
-            stage: preAiCandidateByUrl.get(candidate.source_url)?.lead.stage ?? "unknown",
-            title: candidate.title,
-            query_used: rawCandidateByUrl.get(candidate.source_url)?.query_used ?? null,
-            confidence: classification.confidence,
-            manufacturing_type: classification.manufacturing_type,
-            problem_summary: classification.problem_summary,
-            route: routeLead({
-              stage: preAiCandidateByUrl.get(candidate.source_url)?.lead.stage,
+          rejected.slice(0, 5).map(({ candidate, classification }) => {
+            const lead = preAiCandidateByUrl.get(candidate.source_url)?.lead;
+            const intent = preAiCandidateByUrl.get(candidate.source_url)?.intent;
+            const flags = lead && intent ? getQualificationFlags(lead, intent) : { unresolved_need: false, solved_or_showcase: false, buying_or_help_intent: false };
+            return {
+              has_file: lead?.has_file ?? false,
+              has_photos: lead?.has_photos ?? false,
+              stage: lead?.stage ?? "unknown",
+              title: candidate.title,
+              query_used: rawCandidateByUrl.get(candidate.source_url)?.query_used ?? null,
+              confidence: classification.confidence,
               manufacturing_type: classification.manufacturing_type,
-            }),
-            reason: classification.reason,
-          }))
+              problem_summary: classification.problem_summary,
+              unresolved_need: flags.unresolved_need,
+              solved_or_showcase: flags.solved_or_showcase,
+              buying_or_help_intent: flags.buying_or_help_intent,
+              route: routeLead({
+                stage: lead?.stage,
+                manufacturing_type: classification.manufacturing_type,
+              }),
+              reason: classification.reason,
+            };
+          })
         );
       }
 
@@ -3547,6 +3612,8 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     } else {
       aiRejectedCount = aiCandidates.length;
       for (const candidate of aiCandidates) {
+        const preAiCandidate = preAiCandidateByUrl.get(candidate.source_url);
+        const qualificationFlags = preAiCandidate ? getQualificationFlags(preAiCandidate.lead, preAiCandidate.intent) : { unresolved_need: false, solved_or_showcase: false, buying_or_help_intent: false };
         aiDecisionByUrl.set(candidate.source_url, {
           ai_is_lead: null,
           ai_confidence: null,
@@ -3554,6 +3621,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           ai_manufacturing_type: null,
           ai_problem_summary: null,
           rejection_reason: 'ai_unavailable',
+          unresolved_need: qualificationFlags.unresolved_need,
+          solved_or_showcase: qualificationFlags.solved_or_showcase,
+          buying_or_help_intent: qualificationFlags.buying_or_help_intent,
         });
       }
     }
@@ -3735,6 +3805,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           ai_manufacturing_type: priorDecision?.ai_manufacturing_type ?? null,
           ai_problem_summary: priorDecision?.ai_problem_summary ?? null,
           rejection_reason: "duplicate",
+          unresolved_need: priorDecision?.unresolved_need ?? false,
+          solved_or_showcase: priorDecision?.solved_or_showcase ?? false,
+          buying_or_help_intent: priorDecision?.buying_or_help_intent ?? false,
         });
       }
     }
