@@ -97,16 +97,30 @@ type MonitorResult = {
   quota_exhausted: boolean;
   timestamp: string;
   top_accepted_titles: string[];
+  query_stats: Array<{
+    query: string;
+    group_name: string;
+    fetched: number;
+    sent_to_ai: number;
+    accepted: number;
+    inserted: number;
+    duplicates: number;
+    low_quality_count: number;
+    reject_reasons: Record<string, number>;
+  }>;
 };
 
 type QueryRunStats = {
+  groupName: string;
   fetched: number;
   sentToAi: number;
   preAiAccepted: number;
+  accepted: number;
   aiAccepted: number;
   inserted: number;
   duplicates: number;
   lowQualitySignalCount: number;
+  rejectReasons: Map<string, number>;
 };
 
 type QueryHealthEntry = {
@@ -3022,21 +3036,34 @@ async function saveToJson(leads: Prelead[], outputPath: string) {
   await writeFile(outputPath, JSON.stringify(leads, null, 2) + "\n", "utf8");
 }
 
-function getOrCreateQueryStats(map: Map<string, QueryRunStats>, query: string) {
+function getOrCreateQueryStats(map: Map<string, QueryRunStats>, query: string, groupName = 'unknown') {
   const existing = map.get(query);
-  if (existing) return existing;
+  if (existing) {
+    if (existing.groupName === 'unknown' && groupName !== 'unknown') {
+      existing.groupName = groupName;
+    }
+    return existing;
+  }
 
   const created: QueryRunStats = {
+    groupName,
     fetched: 0,
     sentToAi: 0,
     preAiAccepted: 0,
+    accepted: 0,
     aiAccepted: 0,
     inserted: 0,
     duplicates: 0,
     lowQualitySignalCount: 0,
+    rejectReasons: new Map<string, number>(),
   };
   map.set(query, created);
   return created;
+}
+
+function incrementQueryRejectReason(stats: QueryRunStats, reason: string) {
+  const key = reason.trim() || 'unknown';
+  stats.rejectReasons.set(key, (stats.rejectReasons.get(key) ?? 0) + 1);
 }
 
 async function loadQueryHealthState(): Promise<QueryHealthState> {
@@ -3214,6 +3241,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         const queryUsed = rawCandidate?.query_used?.trim();
         if (queryUsed) {
           const stats = getOrCreateQueryStats(queryStats, queryUsed);
+          incrementQueryRejectReason(stats, preAiHardRejectReason);
           if (preAiHardRejectReason === "low_quality_signal") {
             stats.lowQualitySignalCount += 1;
           }
@@ -3223,7 +3251,11 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
       const queryUsed = rawCandidate?.query_used?.trim();
       if (queryUsed) {
-        getOrCreateQueryStats(queryStats, queryUsed).preAiAccepted += 1;
+        const stats = getOrCreateQueryStats(queryStats, queryUsed);
+        stats.preAiAccepted += 1;
+        if (!useAiPipeline) {
+          stats.accepted += 1;
+        }
       }
 
       preAiCandidates.push({ lead, intent });
@@ -3236,7 +3268,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
   if (useAiPipeline) {
     const preAiCandidateByUrl = new Map(preAiCandidates.map((entry) => [entry.lead.source_url, entry]));
-      const aiShortlistPool = preAiCandidates.filter(({ lead, intent }) => isEligibleForAiShortlist(lead, intent));
+    const aiShortlistPool = preAiCandidates.filter(({ lead, intent }) => isEligibleForAiShortlist(lead, intent));
     const orderedAiCandidates = [...aiShortlistPool].sort((a, b) => {
       const scoreDifference = calculateAiShortlistScore(b.lead, b.intent) - calculateAiShortlistScore(a.lead, a.intent);
       return scoreDifference || comparePreleadPriority(a.lead, b.lead);
@@ -3320,6 +3352,10 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
           aiRejectedCount += 1;
           rejected.push({ candidate, classification });
           incrementReasonCount(aiRejectedReasonCounts, classification.reason || "hard_reject");
+          const rejectedQueryUsed = rawCandidateByUrl.get(candidate.source_url)?.query_used?.trim();
+          if (rejectedQueryUsed) {
+            incrementQueryRejectReason(getOrCreateQueryStats(queryStats, rejectedQueryUsed), `ai_reject:${classification.reason || "hard_reject"}`);
+          }
           aiDecisionByUrl.set(candidate.source_url, {
             ai_is_lead: classification.is_lead,
             ai_confidence: classification.confidence,
@@ -3336,7 +3372,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
 
         const queryUsed = rawCandidateByUrl.get(candidate.source_url)?.query_used?.trim();
         if (queryUsed) {
-          getOrCreateQueryStats(queryStats, queryUsed).aiAccepted += 1;
+          const stats = getOrCreateQueryStats(queryStats, queryUsed);
+          stats.aiAccepted += 1;
+          stats.accepted += 1;
         }
 
         const finalRejectionReason = getFinalAiRejectionReason(
@@ -3350,6 +3388,9 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         if (finalRejectionReason) {
           finalRejectedAfterAiCount += 1;
           incrementReasonCount(finalRejectedReasonCounts, finalRejectionReason);
+          if (queryUsed) {
+            incrementQueryRejectReason(getOrCreateQueryStats(queryStats, queryUsed), `final_reject:${finalRejectionReason}`);
+          }
           aiDecisionByUrl.set(candidate.source_url, {
             ai_is_lead: classification.is_lead,
             ai_confidence: classification.confidence,
@@ -3364,6 +3405,10 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         if (seenFinalUrls.has(candidate.source_url)) {
           finalRejectedAfterAiCount += 1;
           incrementReasonCount(finalRejectedReasonCounts, "duplicate");
+          const duplicateQueryUsed = rawCandidateByUrl.get(candidate.source_url)?.query_used?.trim();
+          if (duplicateQueryUsed) {
+            incrementQueryRejectReason(getOrCreateQueryStats(queryStats, duplicateQueryUsed), "duplicate");
+          }
           aiDecisionByUrl.set(candidate.source_url, {
             ai_is_lead: classification.is_lead,
             ai_confidence: classification.confidence,
@@ -3687,7 +3732,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
       const lowQualityOnly = stats.fetched > 0 && stats.lowQualitySignalCount === stats.fetched;
       const previous = queryHealth.queries[query] ?? { lowQualityStreak: 0, lastRunAt: null, lastLowQualityOnly: false, zeroAcceptedStreak: 0, lastAcceptedCount: 0, disabled: false };
       const lowQualityStreak = lowQualityOnly ? previous.lowQualityStreak + 1 : 0;
-      const zeroAcceptedStreak = stats.aiAccepted === 0 ? previous.zeroAcceptedStreak + 1 : 0;
+      const zeroAcceptedStreak = stats.accepted === 0 ? previous.zeroAcceptedStreak + 1 : 0;
       const disabled = lowQualityStreak >= 3 || zeroAcceptedStreak >= 3;
 
       queryHealth.queries[query] = {
@@ -3695,7 +3740,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
         lastRunAt: new Date().toISOString(),
         lastLowQualityOnly: lowQualityOnly,
         zeroAcceptedStreak,
-        lastAcceptedCount: stats.aiAccepted,
+        lastAcceptedCount: stats.accepted,
         disabled,
       };
       queryHealthChanged = true;
@@ -3743,6 +3788,18 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
   const topAcceptedTitles = leads.slice(0, 5).map((lead) => lead.title);
   const acceptedCount = useAiPipeline ? aiAcceptedCount : leads.length;
 
+  const query_stats = [...queryStats.entries()].map(([query, stats]) => ({
+    query,
+    group_name: stats.groupName,
+    fetched: stats.fetched,
+    sent_to_ai: stats.sentToAi,
+    accepted: stats.accepted,
+    inserted: stats.inserted,
+    duplicates: stats.duplicates,
+    low_quality_count: stats.lowQualitySignalCount,
+    reject_reasons: Object.fromEntries([...stats.rejectReasons.entries()].sort((a, b) => b[1] - a[1])),
+  }));
+
   return {
     scanned: adapters.length,
     qualifying: leads.length,
@@ -3760,6 +3817,7 @@ export async function runPreleadMonitor(options: MonitorOptions = {}): Promise<M
     quota_exhausted: quotaExhausted,
     timestamp: new Date().toISOString(),
     top_accepted_titles: topAcceptedTitles,
+    query_stats,
   };
 }
 

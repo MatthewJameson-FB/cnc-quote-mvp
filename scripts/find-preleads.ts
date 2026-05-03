@@ -13,19 +13,18 @@ loadEnvConfig(process.cwd());
  */
 
 async function main() {
-  const { runPreleadMonitor, defaultPreleadOutputPath } = await import("@/lib/preleads");
+  const { runDiscoveryPreleadWorkflow } = await import("@/lib/cron-find-preleads");
 
-  const result = await runPreleadMonitor({
-    persistJson: true,
-    persistSupabase: true,
-    sendEmail: true,
-    minScore: 6,
-    outputPath: defaultPreleadOutputPath(),
-  });
+  const result = await runDiscoveryPreleadWorkflow("local");
 
-  console.log(
-    `Scanned ${result.scanned} sources, found ${result.qualifying} qualifying preleads, saved ${result.savedToSupabase} to Supabase, wrote JSON: ${result.savedToJson ? "yes" : "no"}, emailed: ${result.emailed ? "yes" : "no"}`
-  );
+  if (result.success) {
+    console.log(
+      `Scanned discovery pipeline, searches_used=${result.searches_used}, fetched=${result.fetched}, sent_to_ai=${result.sent_to_ai}, accepted=${result.accepted}, inserted=${result.inserted}, duplicates=${result.duplicates}, quota_exhausted=${result.quota_exhausted ? "yes" : "no"}`
+    );
+  } else {
+    console.log(result.error);
+    process.exitCode = 1;
+  }
 }
 
 main().catch((error) => {

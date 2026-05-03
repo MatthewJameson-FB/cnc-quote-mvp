@@ -144,6 +144,70 @@
       "zeroAcceptedStreak": 1,
       "lastAcceptedCount": 0,
       "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"3d printed\" replacement -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/CarTalkUK \"custom part\" quote -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 1,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": true,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"broken part\" replacement -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 0,
+      "lastAcceptedCount": 2,
+      "disabled": false
+    },
+    "site:reddit.com \"discontinued part\" replacement -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"stl file\" paid -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com/r/3Dprinting \"replacement part\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"i have a cad file\" quote -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
+    },
+    "site:reddit.com \"one off machined part\" -engine -gearbox -sensor -ECU -wiring -\"won't start\" -\"buying advice\"": {
+      "lowQualityStreak": 0,
+      "lastRunAt": "2026-05-03T08:22:28.541Z",
+      "lastLowQualityOnly": false,
+      "zeroAcceptedStreak": 1,
+      "lastAcceptedCount": 0,
+      "disabled": false
     }
   }
 }

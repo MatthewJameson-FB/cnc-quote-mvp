@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { runPreleadMonitor } from "@/lib/preleads";
 import { sendCronPreleadSummaryEmail } from "@/lib/notifications";
+import {
+  finalizeDiscoveryRun,
+  safeDiscoveryErrorMessage,
+  startDiscoveryRun,
+  type DiscoveryTriggerType,
+} from "@/lib/discovery-runs";
 
-function unauthorized() {
-  return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-}
 
 function extractSecret(req: Request) {
   const authorization = req.headers.get("authorization") ?? "";
@@ -22,13 +25,16 @@ function getAppBaseUrl() {
   return process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://www.flangie.co.uk";
 }
 
-export async function handleFindPreleadsCron(req: Request) {
-  const expected = process.env.CRON_SECRET?.trim();
-  const provided = extractSecret(req);
+function getTriggerType(req: Request): DiscoveryTriggerType {
+  const url = new URL(req.url);
+  const requested = (url.searchParams.get("trigger_type") ?? url.searchParams.get("trigger") ?? req.headers.get("x-trigger-type") ?? "cron").trim().toLowerCase();
 
-  if (!expected || provided !== expected) {
-    return unauthorized();
-  }
+  if (requested === "manual" || requested === "local") return requested;
+  return "cron";
+}
+
+export async function runDiscoveryPreleadWorkflow(triggerType: DiscoveryTriggerType) {
+  const runId = await startDiscoveryRun(triggerType);
 
   try {
     const result = await runPreleadMonitor({
@@ -48,8 +54,18 @@ export async function handleFindPreleadsCron(req: Request) {
       });
     }
 
-    return NextResponse.json({
+    await finalizeDiscoveryRun({
+      runId,
+      triggerType,
+      status: "success",
+      result,
+      errorMessage: null,
+    });
+
+    return {
       success: true,
+      run_id: runId,
+      trigger_type: triggerType,
       searches_used: result.searches_used,
       fetched: result.fetched,
       sent_to_ai: result.sent_to_ai,
@@ -59,9 +75,52 @@ export async function handleFindPreleadsCron(req: Request) {
       skipped_budget: result.skipped_budget,
       quota_exhausted: result.quota_exhausted,
       timestamp: result.timestamp,
-    });
+    };
   } catch (error) {
-    console.error("CRON FIND-PRELEADS ERROR:", error instanceof Error ? error.message : error);
-    return NextResponse.json({ success: false, error: "Failed to run discovery." }, { status: 500 });
+    const safeError = safeDiscoveryErrorMessage(error);
+    console.error("CRON FIND-PRELEADS ERROR:", safeError);
+
+    try {
+      await finalizeDiscoveryRun({
+        runId,
+        triggerType,
+        status: "error",
+        result: {
+          searches_used: 0,
+          fetched: 0,
+          sent_to_ai: 0,
+          accepted: 0,
+          inserted: 0,
+          duplicates: 0,
+          skipped_budget: 0,
+          quota_exhausted: false,
+          timestamp: new Date().toISOString(),
+          top_accepted_titles: [],
+          query_stats: [],
+        },
+        errorMessage: safeError,
+      });
+    } catch (persistError) {
+      console.error("CRON FIND-PRELEADS HISTORY ERROR:", safeDiscoveryErrorMessage(persistError));
+    }
+
+    return { success: false, error: "Failed to run discovery." };
   }
+}
+
+export async function runDiscoveryPreleadMonitor(req: Request) {
+  const expected = process.env.CRON_SECRET?.trim();
+  const provided = extractSecret(req);
+  const triggerType = getTriggerType(req);
+
+  if (!expected || provided !== expected) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const result = await runDiscoveryPreleadWorkflow(triggerType);
+  return NextResponse.json(result, { status: result.success ? 200 : 500 });
+}
+
+export async function handleFindPreleadsCron(req: Request) {
+  return runDiscoveryPreleadMonitor(req);
 }

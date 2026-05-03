@@ -11,6 +11,7 @@ const todayItems = [
 
 const discoveryItems = [
   { label: 'Find Leads', href: '/admin/discovery-groups' },
+  { label: 'Discovery Runs', href: '/admin/discovery-runs' },
   { label: 'Add Manual Lead', href: '/admin/manual-lead' },
 ]
 
