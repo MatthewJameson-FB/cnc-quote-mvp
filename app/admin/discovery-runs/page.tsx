@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdminUser } from "@/lib/admin-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { toDiscoverySafeError, type DiscoverySafeError } from "@/lib/discovery-runs";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +25,26 @@ function metric(value: number | null | undefined) {
   return typeof value === "number" ? value : 0;
 }
 
+function DiscoveryRunErrorPanel({ error }: { error: DiscoverySafeError }) {
+  return (
+    <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Discovery run history is not available yet.</p>
+      <div className="mt-4 space-y-2 text-sm text-slate-700">
+        <p><span className="font-semibold">Message:</span> {error.message}</p>
+        <p><span className="font-semibold">Code:</span> {error.code || "—"}</p>
+        <p><span className="font-semibold">Hint:</span> {error.hint || "—"}</p>
+        <p><span className="font-semibold">Details:</span> {error.details || "—"}</p>
+      </div>
+    </section>
+  );
+}
+
 export default async function DiscoveryRunsPage() {
   await requireAdminUser();
   const supabase = createSupabaseAdminClient();
   let runs: DiscoveryRunRow[] = [];
+
+  let errorState: DiscoverySafeError | null = null;
 
   try {
     const { data, error } = await supabase
@@ -42,14 +59,14 @@ export default async function DiscoveryRunsPage() {
 
     runs = (data ?? []) as DiscoveryRunRow[];
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error ?? "");
-    if (!/Could not find the table|schema cache/i.test(message)) {
-      throw new Error(message);
-    }
+    const safeError = toDiscoverySafeError(error);
+    console.error("[discovery-runs] Supabase error", safeError);
+    errorState = safeError;
   }
 
   return (
     <main className="space-y-6">
+      {errorState ? <DiscoveryRunErrorPanel error={errorState} /> : null}
       <header className="rounded-3xl border bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Discovery</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">Discovery runs</h1>

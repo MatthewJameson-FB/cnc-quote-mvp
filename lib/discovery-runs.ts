@@ -182,3 +182,31 @@ export function safeDiscoveryErrorMessage(error: unknown) {
 export function buildDiscoverySummarySnapshot(result: DiscoveryRunSnapshot) {
   return buildSummary("cron", "success", result, null);
 }
+
+export type DiscoverySafeError = {
+  message: string;
+  code: string | null;
+  details: string | null;
+  hint: string | null;
+};
+
+export function toDiscoverySafeError(error: unknown): DiscoverySafeError {
+  const objectError = typeof error === "object" && error !== null ? (error as Record<string, unknown>) : null;
+  const message =
+    (typeof objectError?.message === "string" && objectError.message) ||
+    (error instanceof Error ? error.message : "") ||
+    (() => {
+      try {
+        return JSON.stringify(error);
+      } catch {
+        return String(error ?? "Unknown error");
+      }
+    })();
+
+  return {
+    message: String(message || "Unknown error"),
+    code: typeof objectError?.code === "string" ? objectError.code : null,
+    details: typeof objectError?.details === "string" ? objectError.details : null,
+    hint: typeof objectError?.hint === "string" ? objectError.hint : null,
+  };
+}

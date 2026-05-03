@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { requireAdminUser } from "@/lib/admin-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { toDiscoverySafeError, type DiscoverySafeError } from "@/lib/discovery-runs";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +62,20 @@ function summaryText(summary: Record<string, unknown> | null | undefined, key: s
   return typeof value === "string" ? value : null;
 }
 
+function DiscoveryRunErrorPanel({ error }: { error: DiscoverySafeError }) {
+  return (
+    <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Discovery run history is not available yet.</p>
+      <div className="mt-4 space-y-2 text-sm text-slate-700">
+        <p><span className="font-semibold">Message:</span> {error.message}</p>
+        <p><span className="font-semibold">Code:</span> {error.code || "—"}</p>
+        <p><span className="font-semibold">Hint:</span> {error.hint || "—"}</p>
+        <p><span className="font-semibold">Details:</span> {error.details || "—"}</p>
+      </div>
+    </section>
+  );
+}
+
 export default async function DiscoveryRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminUser();
   const { id } = await params;
@@ -69,7 +83,7 @@ export default async function DiscoveryRunDetailPage({ params }: { params: Promi
 
   let run: DiscoveryRunRow | null = null;
   let queryStats: DiscoveryQueryStatRow[] = [];
-  let missingTable = false;
+  let errorState: DiscoverySafeError | null = null;
 
   try {
     const [{ data: runData, error: runError }, { data: statsData, error: statsError }] = await Promise.all([
@@ -91,27 +105,17 @@ export default async function DiscoveryRunDetailPage({ params }: { params: Promi
     run = (runData ?? null) as DiscoveryRunRow | null;
     queryStats = (statsData ?? []) as DiscoveryQueryStatRow[];
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error ?? "");
-    if (!/Could not find the table|schema cache/i.test(message)) {
-      throw new Error(message);
-    }
-    missingTable = true;
+    const safeError = toDiscoverySafeError(error);
+    console.error("[discovery-runs] Supabase error", safeError);
+    errorState = safeError;
   }
 
   if (!run) {
-    if (missingTable) {
-      return (
-        <main className="space-y-6">
-          <header className="rounded-3xl border bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Discovery run</p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">History table not ready yet</h1>
-            <p className="mt-2 text-slate-600">The app code is deployed, but the discovery history tables still need to be applied in Supabase.</p>
-          </header>
-        </main>
-      );
-    }
-
-    notFound();
+    return (
+      <main className="space-y-6">
+        {errorState ? <DiscoveryRunErrorPanel error={errorState} /> : <DiscoveryRunErrorPanel error={{ message: "No discovery run found.", code: null, details: null, hint: null }} />}
+      </main>
+    );
   }
 
   const summary = (run.summary ?? {}) as Record<string, unknown>;
