@@ -338,6 +338,24 @@ const explicitIntentBoostPatterns = [
   /\bno longer available\b/i,
   /\boem unavailable\b/i,
   /\breplacement part not available\b/i,
+  /\bwhat is this (?:piece|part) called\b/i,
+  /\banyone know where to get this\b/i,
+];
+const completionSignalPatterns = [
+  /\bfixed\b/i,
+  /\bsolved\b/i,
+  /\bupdated\b/i,
+  /\bi did\b/i,
+  /\bi replaced\b/i,
+  /\bi wrapped\b/i,
+  /\bi installed\b/i,
+  /\bfinished\b/i,
+  /\bhappy with this\b/i,
+  /\bupdate\b/i,
+  /\bbefore and after\b/i,
+  /\bfinally done\b/i,
+  /\binterior update\b/i,
+  /\bproject complete\b/i,
 ];
 const stlOnlyReplySuppressionPatterns = [
   /\blooking for (?:an? )?(?:stl|cad|file)\b/i,
@@ -865,6 +883,14 @@ function hasStrictLeadQualitySignal(lead: Pick<Prelead, "title" | "snippet">, in
   const hasRealWorldObjectSignal = hasAnyPattern(text, realWorldObjectBoostPatterns);
   const hasExplicitIntentSignal = hasAnyPattern(text, explicitIntentBoostPatterns) || hasDirectRequestNeedSignal(intent);
 
+  if (looksLikeShowcaseOrOwnerPost(text)) {
+    return false;
+  }
+
+  if (!hasPositiveBuyingIntentSignal(lead, intent)) {
+    return false;
+  }
+
   if (hasAnyPattern(text, automotivePatterns) && !hasClearPhysicalPartSignal(text)) {
     return false;
   }
@@ -1044,7 +1070,11 @@ function classifyPreleadIntent(candidate: { title: string; snippet: string; sour
   const businessSignals = collectSignalMatches(text, businessAdviceSignalEntries);
   const machineSignals = collectSignalMatches(text, machinePurchaseSignalEntries);
   const discussionSignals = collectSignalMatches(text, generalDiscussionSignalEntries);
-  const negativeSignals = collectSignalMatches(text, negativeSignalEntries);
+  const completionSignals = collectSignalMatches(
+    text,
+    completionSignalPatterns.map((pattern, index) => ({ label: `completion_${index}`, pattern, weight: 0.25 }))
+  );
+  const negativeSignals = uniq([...collectSignalMatches(text, negativeSignalEntries), ...completionSignals]);
   const bannedSignals = collectSignalMatches(text, bannedKeywordEntries);
 
   const hasSupplierAd = supplierSignals.length > 0;
@@ -1059,8 +1089,8 @@ function classifyPreleadIntent(candidate: { title: string; snippet: string; sour
     ...physicalPartSignalEntries,
     ...needSignalEntries,
   ]);
-  const negativeWeight = sumSignalWeights(text, negativeSignalEntries);
-  const combinedConfidence = clampConfidence(0.08 + positiveWeight - Math.min(0.45, negativeWeight * 0.35));
+  const negativeWeight = sumSignalWeights(text, negativeSignalEntries) + completionSignals.length * 0.25;
+  const combinedConfidence = clampConfidence(0.08 + positiveWeight - Math.min(0.45, negativeWeight * 0.35) - (completionSignals.length > 0 ? 0.18 : 0));
 
   let intent_type: PreleadIntentType = "unknown";
   let confidence = combinedConfidence;
@@ -1074,9 +1104,12 @@ function classifyPreleadIntent(candidate: { title: string; snippet: string; sour
   } else if (hasMachinePurchase) {
     intent_type = "machine_purchase";
     confidence = clampConfidence(Math.max(0.58, negativeWeight));
+  } else if (completionSignals.length > 0) {
+    intent_type = "general_discussion";
+    confidence = clampConfidence(Math.max(0.18, combinedConfidence * 0.45));
   } else if (
-    directRequestNeedSignals.length > 0 &&
-    (threeDPrintSignals.length > 0 || makeIntentSignals.length > 0 || physicalPartSignals.length > 0 || machiningSignals.length > 0)
+    (directRequestNeedSignals.length > 0 || hasAnyPattern(text, explicitIntentBoostPatterns) || hasAnyPattern(text, buyerProblemBoostPatterns)) &&
+    (threeDPrintSignals.length > 0 || makeIntentSignals.length > 0 || physicalPartSignals.length > 0 || machiningSignals.length > 0 || hasAnyPattern(text, buyerProblemBoostPatterns))
   ) {
     intent_type = "buyer_problem";
     confidence = clampConfidence(Math.max(combinedConfidence, Math.min(0.98, 0.38 + positiveWeight)));
@@ -1500,6 +1533,7 @@ function calculateLeadScore(text: string, location: LocationInferenceResult, int
   if (hasStrongBuyerRequestShape(leadLikeShape, analysis)) score += 8;
   if (looksLikeFeasibilityOrDiscussionPost(leadLikeShape)) score -= 8;
   if (looksLikeShowcaseOrOwnerPost(text)) score -= 10;
+  if (!hasPositiveBuyingIntentSignal(leadLikeShape, analysis)) score -= 16;
   if (looksLikeSupportReplacementPost(text)) score -= 12;
   if (looksLikeConsumerDeviceReplacement(text)) score -= 10;
   if (hasHighTicketFabricationSignal(text, analysis)) score += 12;
@@ -2257,6 +2291,8 @@ function getCandidateRejectionReason(lead: Prelead, intent: PreleadIntent, inclu
   const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
+  if (looksLikeShowcaseOrOwnerPost(text)) return "low_quality_signal";
+  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "no_need_signal";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (lead.location_signal === "outside_uk" && !includeOutsideUk) return "outside_uk";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
@@ -2283,6 +2319,8 @@ function getPreAiHardRejectReason(lead: Prelead, intent: PreleadIntent) {
   const easyBuy = hasEasyBuySignal(text);
 
   if (looksLikeNonManufacturableRepairJob(lead)) return "non_manufacturable";
+  if (looksLikeShowcaseOrOwnerPost(text)) return "low_quality_signal";
+  if (!hasPositiveBuyingIntentSignal(lead, intent)) return "no_need_signal";
   if (lead.location_signal === "outside_uk" && lead.location_confidence > 0.7) return "outside_uk_strong";
   if (hardness.bodyworkMatch && !hasStrongUnavailableSignal(text)) return "low_quality_signal";
   if (easyBuy && !hasStrongUnavailableSignal(text) && intent.three_d_print_signals.length > 0) return "low_quality_signal";
@@ -2369,7 +2407,19 @@ function looksLikeShowcaseOrOwnerPost(text: string) {
     /\bconfirmed to be coming out\b/i,
     /\bwalkthrough\b/i,
     /\bshowcase\b/i,
+    ...completionSignalPatterns,
   ].some((pattern) => pattern.test(text));
+}
+
+function hasPositiveBuyingIntentSignal(lead: Pick<Prelead, "title" | "snippet">, intent: PreleadIntent) {
+  const text = getCandidateText(lead);
+  return (
+    hasDirectRequestNeedSignal(intent) ||
+    hasAnyPattern(text, buyerProblemBoostPatterns) ||
+    hasAnyPattern(text, explicitIntentBoostPatterns) ||
+    hasAnyPattern(text, usageBlockingPatterns) ||
+    hasAnyPattern(text, unavailablePartPatterns)
+  );
 }
 
 function looksLikeSupportReplacementPost(text: string) {

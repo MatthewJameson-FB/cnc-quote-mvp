@@ -25,7 +25,7 @@ export type AiPreleadCandidateInput = {
   value_tier?: "low" | "medium" | "high";
   value_score?: number;
   value_reason?: string | null;
-  suggested_reply: string;
+  suggested_reply?: string;
 };
 
 export type AiPreleadClassification = {
@@ -86,6 +86,84 @@ function toBoundedNumber(value: string | undefined, fallback: number, min: numbe
   return Math.min(max, Math.max(min, parsed));
 }
 
+function getCandidateText(candidate: AiPreleadCandidateInput) {
+  return `${candidate.title} ${candidate.snippet}`.toLowerCase();
+}
+
+const buyingIntentPatterns = [
+  /\banyone know where to get this\b/i,
+  /\bcan't find this part\b/i,
+  /\bcan(?:'|’)t find part\b/i,
+  /\bwhat is this (?:piece|part) called\b/i,
+  /\bhow do i fix\b/i,
+  /\bwhere can i get\b/i,
+  /\blooking for\b/i,
+  /\bneed replacement\b/i,
+  /\bmissing part\b/i,
+  /\bbroken part\b/i,
+  /\bbroken trim\b/i,
+  /\bpart snapped\b/i,
+  /\bstill need\b/i,
+  /\bunresolved\b/i,
+];
+
+const solvedOrShowcasePatterns = [
+  /\bfixed\b/i,
+  /\bsolved\b/i,
+  /\bupdated\b/i,
+  /\bi did\b/i,
+  /\bi replaced\b/i,
+  /\bi wrapped\b/i,
+  /\bi installed\b/i,
+  /\bfinished\b/i,
+  /\bhappy with this\b/i,
+  /\bupdate\b/i,
+  /\bbefore and after\b/i,
+  /\bfinally done\b/i,
+  /\binterior update\b/i,
+  /\bproject complete\b/i,
+];
+
+function hasPositiveBuyingIntent(candidate: AiPreleadCandidateInput) {
+  const text = getCandidateText(candidate);
+  return buyingIntentPatterns.some((pattern) => pattern.test(text));
+}
+
+function looksSolvedOrShowcase(candidate: AiPreleadCandidateInput) {
+  const text = getCandidateText(candidate);
+  return solvedOrShowcasePatterns.some((pattern) => pattern.test(text));
+}
+
+function applyGuardrails(candidate: AiPreleadCandidateInput, classification: AiPreleadClassification): AiPreleadClassification {
+  if (looksSolvedOrShowcase(candidate)) {
+    return {
+      ...classification,
+      is_lead: false,
+      manufacturable: false,
+      confidence: Math.min(classification.confidence, 0.2),
+      reason: "Rejected: solved/showcase post",
+      reject_reason: "showcase_or_solved_post",
+      should_reply: false,
+      suggested_reply: classification.suggested_reply,
+    };
+  }
+
+  if (!hasPositiveBuyingIntent(candidate)) {
+    return {
+      ...classification,
+      is_lead: false,
+      manufacturable: false,
+      confidence: Math.min(classification.confidence, 0.25),
+      reason: "Rejected: missing buying-intent signal",
+      reject_reason: "missing_buying_intent",
+      should_reply: false,
+      suggested_reply: classification.suggested_reply,
+    };
+  }
+
+  return classification;
+}
+
 export function getAiPreleadClassifierConfig(): AiClassifierConfig {
   const apiKey = process.env.OPENAI_API_KEY?.trim() || null;
 
@@ -107,6 +185,8 @@ function buildPrompt(candidate: AiPreleadCandidateInput) {
     "Prioritize automotive replacement parts when the post clearly sounds like a missing, broken, snapped, discontinued, or unavailable part.",
     "Accept obvious physical automotive parts even if CAD detail is missing: trim, clip, bracket, cover, casing, panel, latch, mount, grille, mirror casing, bumper trim, dashboard piece, or interior part.",
     "Treat these as good leads when replacement intent is clear: 'Anyone know where I can get this dashboard trim piece for a 2012 BMW? Mine snapped and I can’t find one.' and 'Door panel clip broke and now the trim won’t sit flush.'",
+    "Reject solved, updated, showcase, before-and-after, or completed-project posts even if they mention a part.",
+    "Only accept if there is a clear buying-intent signal: asking where to get it, what it is called, how to fix it, stating it cannot be found, or describing an unresolved broken/missing part.",
     "Return manufacturable=false for generic repair diagnosis, engine/gearbox/transmission/ECU/sensor/wiring/electrical problems, strong outside-UK leads, and posts without a specific physical part.",
     "Prefer manufacturing_type=3d_print when the part seems plastic, small/simple, hobby/DIY, or the post mentions STL/CAD/model files, printers, resin, PLA, ABS, or printing directly.",
     "Prefer manufacturing_type=cnc when the context suggests metal, precision, tolerances, machining, automotive, engineering, aluminium, steel, stainless, milling, turning, or lathe work; but still reject non-manufacturable automotive diagnostics.",
@@ -247,7 +327,7 @@ async function classifyOneCandidate(
     throw new AiParseError(`Classifier JSON did not match expected schema: ${text.slice(0, 400)}`);
   }
 
-  return {
+  return applyGuardrails(candidate, {
     ...classification,
     confidence: Math.max(0, Math.min(1, Number(classification.confidence.toFixed(2)))),
     reason: classification.reason.trim(),
@@ -256,7 +336,7 @@ async function classifyOneCandidate(
     value_score: Number(classification.value_score.toFixed(0)),
     value_reason: classification.value_reason.trim(),
     suggested_reply: classification.suggested_reply.trim(),
-  };
+  });
 }
 
 export async function classifyPreleadCandidatesWithAI(
@@ -299,7 +379,7 @@ export async function classifyPreleadCandidatesWithAI(
             value_score: 0,
             value_reason: "malformed AI output",
             should_reply: false,
-            suggested_reply: candidate.suggested_reply,
+            suggested_reply: candidate.title,
           },
         });
         continue;
@@ -322,7 +402,7 @@ export async function classifyPreleadCandidatesWithAI(
           value_score: 0,
           value_reason: "AI classifier failure",
           should_reply: false,
-          suggested_reply: candidate.suggested_reply,
+          suggested_reply: candidate.title,
         },
       });
     }
